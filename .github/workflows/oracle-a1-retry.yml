@@ -1,0 +1,121 @@
+name: Oracle A1 retry
+
+# Keeps hitting "Apply" on the instance-vex stack until Oracle has free
+# A1 (ARM) capacity. Once the server exists it turns itself off.
+#
+# Needs 2 repo secrets:
+#   OCI_CONFIG = the "Configuration file preview" text from Oracle's API key page
+#   OCI_KEY    = full contents of the downloaded API private key (.pem)
+#
+# This repo is public, so the logs never print account IDs.
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"   # every 5 min (GitHub sometimes runs these late)
+  workflow_dispatch:
+
+permissions:
+  actions: write   # lets it disable itself once the server exists
+
+concurrency:
+  group: oracle-a1-retry
+  cancel-in-progress: false
+
+env:
+  STACK_NAME: instance-vex
+  INSTANCE_NAME: instance-vex
+  OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING: "True"
+
+jobs:
+  retry:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install OCI CLI
+        run: pip install -q oci-cli
+
+      - name: Write OCI config
+        env:
+          OCI_CONFIG: ${{ secrets.OCI_CONFIG }}
+          OCI_KEY: ${{ secrets.OCI_KEY }}
+        run: |
+          if [ -z "$OCI_CONFIG" ] || [ -z "$OCI_KEY" ]; then
+            echo "::error::Add the OCI_CONFIG and OCI_KEY repo secrets first"
+            exit 1
+          fi
+          mkdir -p ~/.oci
+          printf '%s\n' "$OCI_KEY" | tr -d '\r' > ~/.oci/key.pem
+          printf '%s\n' "$OCI_CONFIG" | tr -d '\r' | grep -v '^key_file' > ~/.oci/config
+          echo "key_file=$HOME/.oci/key.pem" >> ~/.oci/config
+          chmod 600 ~/.oci/key.pem ~/.oci/config
+
+      - name: Check server / retry Apply
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+
+          stop_retrying() {
+            echo "$1"
+            echo "Turning this workflow off so it stops retrying."
+            gh workflow disable oracle-a1-retry.yml -R "$GITHUB_REPOSITORY" || true
+            exit 0
+          }
+
+          TENANCY=$(grep -m1 '^tenancy' ~/.oci/config | cut -d= -f2- | tr -d ' ')
+          echo "::add-mask::$TENANCY"
+          if [ -z "$TENANCY" ]; then
+            echo "::error::OCI_CONFIG has no tenancy= line - paste the full config preview"; exit 1
+          fi
+
+          # 0) Can we log in + find the stack?
+          if ! STACK_ID=$(oci resource-manager stack list -c "$TENANCY" --display-name "$STACK_NAME" \
+                          --query 'data[0].id' --raw-output 2>/dev/null); then
+            echo "::error::OCI login failed - check the OCI_CONFIG / OCI_KEY secrets"; exit 1
+          fi
+          if [ -z "$STACK_ID" ]; then
+            echo "::error::Logged in, but no stack named $STACK_NAME was found"; exit 1
+          fi
+          echo "::add-mask::$STACK_ID"
+          echo "Logged in to Oracle and found the stack."
+
+          # 1) Does the server already exist?
+          N=$(oci compute instance list -c "$TENANCY" --display-name "$INSTANCE_NAME" --all \
+               --query "length(data[?\"lifecycle-state\"!='TERMINATED' && \"lifecycle-state\"!='TERMINATING'])" \
+               --raw-output 2>/dev/null || true)
+          case "$N" in ''|*[!0-9]*) N=0 ;; esac
+          if [ "$N" -gt 0 ]; then
+            stop_retrying "SERVER EXISTS: $INSTANCE_NAME is up."
+          fi
+
+          # 2) What happened to the last job?
+          LAST_ID=$(oci resource-manager job list --stack-id "$STACK_ID" --sort-by TIMECREATED \
+                    --sort-order DESC --limit 1 --query 'data[0].id' --raw-output 2>/dev/null || true)
+          if [ -n "$LAST_ID" ]; then
+            echo "::add-mask::$LAST_ID"
+            LAST_STATE=$(oci resource-manager job get --job-id "$LAST_ID" \
+                         --query 'data."lifecycle-state"' --raw-output 2>/dev/null || true)
+            echo "Last job: $LAST_STATE"
+            case "$LAST_STATE" in
+              ACCEPTED|IN_PROGRESS|CANCELING)
+                echo "A job is still running - skipping this round."; exit 0 ;;
+              FAILED)
+                REASON=$(oci resource-manager job get-job-logs-content --job-id "$LAST_ID" --raw-output 2>/dev/null \
+                         | grep -oiE 'out of host capacity|toomanyrequests|notauthorized[a-z]*|limitexceeded' | head -1 || true)
+                echo "Why it failed: ${REASON:-unknown (check the job in the Oracle console)}" ;;
+            esac
+          fi
+
+          # 3) Try again
+          if ! JOB=$(oci resource-manager job create-apply-job --stack-id "$STACK_ID" \
+                     --execution-plan-strategy AUTO_APPROVED \
+                     --display-name "auto-retry-$(date -u +%m%d-%H%M)" \
+                     --query 'data.id' --raw-output 2>/dev/null) || [ -z "$JOB" ]; then
+            echo "Oracle didn't accept a new job (probably rate-limited). Will try next round."
+            exit 0
+          fi
+          echo "Started a new Apply job. The next run checks whether it worked."
