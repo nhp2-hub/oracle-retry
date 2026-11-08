@@ -25,6 +25,7 @@ env:
   STACK_NAME: instance-vex
   INSTANCE_NAME: instance-vex
   OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING: "True"
+  SUPPRESS_LABEL_WARNING: "True"
 
 jobs:
   retry:
@@ -48,7 +49,13 @@ jobs:
             exit 1
           fi
           mkdir -p ~/.oci
-          printf '%s\n' "$OCI_KEY" | tr -d '\r' > ~/.oci/key.pem
+          printf '%s\n' "$OCI_KEY" | tr -d '\r' | grep -v '^OCI_API_KEY' | sed '/^[[:space:]]*$/d' > ~/.oci/key.pem
+          # If the BEGIN/END lines got left out when copying, add them back
+          if ! grep -q 'BEGIN' ~/.oci/key.pem; then
+            { echo "-----BEGIN PRIVATE KEY-----"; cat ~/.oci/key.pem; echo "-----END PRIVATE KEY-----"; } > ~/.oci/key.tmp
+            mv ~/.oci/key.tmp ~/.oci/key.pem
+            echo "Note: added missing BEGIN/END lines to the key."
+          fi
           printf '%s\n' "$OCI_CONFIG" | tr -d '\r' | grep -v '^key_file' > ~/.oci/config
           echo "key_file=$HOME/.oci/key.pem" >> ~/.oci/config
           chmod 600 ~/.oci/key.pem ~/.oci/config
@@ -80,8 +87,6 @@ jobs:
               | grep -viE 'opc-request-id|request_endpoint|client_version|timestamp' | head -15
             echo "--- config keys present ---"
             cut -d= -f1 ~/.oci/config | tr -d ' '
-            echo "--- key file shape ---"
-            head -1 ~/.oci/key.pem | cut -c1-40; echo "lines: $(wc -l < ~/.oci/key.pem)"
             echo "::error::OCI login failed - check the OCI_CONFIG / OCI_KEY secrets"; exit 1
           fi
           if [ -z "$STACK_ID" ]; then
