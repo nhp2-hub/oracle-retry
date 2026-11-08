@@ -74,7 +74,14 @@ jobs:
 
           # 0) Can we log in + find the stack?
           if ! STACK_ID=$(oci resource-manager stack list -c "$TENANCY" --display-name "$STACK_NAME" \
-                          --query 'data[0].id' --raw-output 2>/dev/null); then
+                          --query 'data[0].id' --raw-output 2>/tmp/oci_err); then
+            echo "--- what Oracle said (IDs hidden) ---"
+            sed -E 's/ocid1\.[a-z0-9._-]+/<id>/g; s/([0-9a-f]{2}:){5,}[0-9a-f]{2}/<fingerprint>/g' /tmp/oci_err \
+              | grep -viE 'opc-request-id|request_endpoint|client_version|timestamp' | head -15
+            echo "--- config keys present ---"
+            cut -d= -f1 ~/.oci/config | tr -d ' '
+            echo "--- key file shape ---"
+            head -1 ~/.oci/key.pem | cut -c1-40; echo "lines: $(wc -l < ~/.oci/key.pem)"
             echo "::error::OCI login failed - check the OCI_CONFIG / OCI_KEY secrets"; exit 1
           fi
           if [ -z "$STACK_ID" ]; then
