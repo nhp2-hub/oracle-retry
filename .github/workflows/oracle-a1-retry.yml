@@ -1,7 +1,8 @@
 name: Oracle A1 retry
 
 # Keeps hitting "Apply" on the instance-vex stack until Oracle has free
-# A1 (ARM) capacity. Once the server exists it turns itself off.
+# A1 (ARM) capacity. When the server exists it opens a GitHub issue
+# (so you get an email/phone ping) and turns itself off.
 #
 # Needs 2 repo secrets:
 #   OCI_CONFIG = the "Configuration file preview" text from Oracle's API key page
@@ -10,13 +11,13 @@ name: Oracle A1 retry
 # This repo is public, so the logs never print account IDs.
 
 on:
+  workflow_dispatch:      # main loop: each run starts the next one itself
   schedule:
-    - cron: "*/5 * * * *"   # backup only - GitHub often skips/delays these
-  # Main loop: each run waits ~4 min, then starts the next run itself.
-  workflow_dispatch:
+    - cron: "17 * * * *"  # hourly backup, restarts the loop if it ever dies
 
 permissions:
-  actions: write   # lets it disable itself once the server exists
+  actions: write   # start the next run / disable itself
+  issues: write    # "server is up" notification
 
 concurrency:
   group: oracle-a1-retry
@@ -25,20 +26,26 @@ concurrency:
 env:
   STACK_NAME: instance-vex
   INSTANCE_NAME: instance-vex
+  WORKFLOW_FILE: oracle-a1-retry.yml
   OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING: "True"
   SUPPRESS_LABEL_WARNING: "True"
 
 jobs:
   retry:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 25
     steps:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
       - name: Install OCI CLI
-        run: pip install -q oci-cli
+        run: |
+          for i in 1 2 3; do
+            pip install -q "oci-cli==3.95.1" && exit 0
+            echo "pip install failed, retrying in 20s"; sleep 20
+          done
+          exit 1
 
       - name: Write OCI config
         env:
@@ -55,91 +62,127 @@ jobs:
           if ! grep -q 'BEGIN' ~/.oci/key.pem; then
             { echo "-----BEGIN PRIVATE KEY-----"; cat ~/.oci/key.pem; echo "-----END PRIVATE KEY-----"; } > ~/.oci/key.tmp
             mv ~/.oci/key.tmp ~/.oci/key.pem
-            echo "Note: added missing BEGIN/END lines to the key."
           fi
-          printf '%s\n' "$OCI_CONFIG" | tr -d '\r' | grep -v '^key_file' > ~/.oci/config
-          echo "key_file=$HOME/.oci/key.pem" >> ~/.oci/config
+          { echo "[DEFAULT]"
+            printf '%s\n' "$OCI_CONFIG" | tr -d '\r' | grep -E '^[[:space:]]*(user|fingerprint|tenancy|region)[[:space:]]*=' \
+              | sed -E 's/[[:space:]]*#.*$//; s/[[:space:]]*=[[:space:]]*/=/'
+            echo "key_file=$HOME/.oci/key.pem"
+          } > ~/.oci/config
           chmod 600 ~/.oci/key.pem ~/.oci/config
+          for k in user fingerprint tenancy region; do
+            grep -q "^$k=" ~/.oci/config || { echo "::error::OCI_CONFIG is missing the $k= line"; exit 1; }
+          done
 
       - name: Check server / retry Apply
+        id: check
         env:
           GH_TOKEN: ${{ github.token }}
+        shell: bash
         run: |
           set -uo pipefail
 
-          stop_retrying() {
+          server_is_up() {
             echo "$1"
-            touch /tmp/server_exists
-            echo "Turning this workflow off so it stops retrying."
-            gh workflow disable oracle-a1-retry.yml -R "$GITHUB_REPOSITORY" || true
+            echo "done=true" >> "$GITHUB_OUTPUT"
+            gh api -X POST "repos/$GITHUB_REPOSITORY/issues" \
+              -f title="Oracle server instance-vex is up" \
+              -f body="The retry loop got an A1 server. It has turned itself off. Next: add a public IP (if not patched), delete the API key, SSH in." \
+              >/dev/null || true
+            gh api -X PUT "repos/$GITHUB_REPOSITORY/actions/workflows/$WORKFLOW_FILE/disable" || true
+            echo "Workflow turned off."
             exit 0
           }
 
-          TENANCY=$(grep -m1 '^tenancy' ~/.oci/config | cut -d= -f2- | tr -d ' ')
+          TENANCY=$(grep -m1 '^tenancy=' ~/.oci/config | cut -d= -f2- || true)
           echo "::add-mask::$TENANCY"
-          if [ -z "$TENANCY" ]; then
-            echo "::error::OCI_CONFIG has no tenancy= line - paste the full config preview"; exit 1
-          fi
 
-          # 0) Can we log in + find the stack?
-          if ! STACK_ID=$(oci resource-manager stack list -c "$TENANCY" --display-name "$STACK_NAME" \
-                          --query 'data[0].id' --raw-output 2>/tmp/oci_err); then
+          # 0) Log in + find the stack (retry once for blips)
+          RC=1
+          for try in 1 2; do
+            if STACK_ID=$(oci resource-manager stack list -c "$TENANCY" --display-name "$STACK_NAME" \
+                           --lifecycle-state ACTIVE --query 'data[0].id' --raw-output 2>/tmp/oci_err); then
+              RC=0; break
+            fi
+            sleep 15
+          done
+          if [ "$RC" -ne 0 ]; then
             echo "--- what Oracle said (IDs hidden) ---"
             sed -E 's/ocid1\.[a-z0-9._-]+/<id>/g; s/([0-9a-f]{2}:){5,}[0-9a-f]{2}/<fingerprint>/g' /tmp/oci_err \
-              | grep -viE 'opc-request-id|request_endpoint|client_version|timestamp' | head -15
-            echo "--- config keys present ---"
-            cut -d= -f1 ~/.oci/config | tr -d ' '
-            echo "::error::OCI login failed - check the OCI_CONFIG / OCI_KEY secrets"; exit 1
+              | grep -viE 'opc-request-id|request_endpoint|client_version|timestamp' | head -15 || true
+            echo "::error::Couldn't log in to Oracle - check the OCI_CONFIG / OCI_KEY secrets"; exit 1
           fi
-          if [ -z "$STACK_ID" ]; then
-            echo "::error::Logged in, but no stack named $STACK_NAME was found"; exit 1
+          if [ -z "${STACK_ID:-}" ]; then
+            echo "::error::Logged in, but no ACTIVE stack named $STACK_NAME was found"; exit 1
           fi
           echo "::add-mask::$STACK_ID"
           echo "Logged in to Oracle and found the stack."
 
-          # 1) Does the server already exist?
-          N=$(oci compute instance list -c "$TENANCY" --display-name "$INSTANCE_NAME" --all \
-               --query "length(data[?\"lifecycle-state\"!='TERMINATED' && \"lifecycle-state\"!='TERMINATING'])" \
-               --raw-output 2>/dev/null || true)
-          case "$N" in ''|*[!0-9]*) N=0 ;; esac
-          if [ "$N" -gt 0 ]; then
-            stop_retrying "SERVER EXISTS: $INSTANCE_NAME is up."
+          # 1) Does the server already exist? (a failed check must NOT count as "no server")
+          if ! N=$(oci compute instance list -c "$TENANCY" --display-name "$INSTANCE_NAME" --all \
+                    --query "length(data[?\"lifecycle-state\"!='TERMINATED' && \"lifecycle-state\"!='TERMINATING'])" \
+                    --raw-output 2>/dev/null); then
+            echo "Couldn't check for the server this round - skipping to be safe."; exit 0
           fi
+          case "$N" in ''|*[!0-9]*) N=0 ;; esac
+          [ "$N" -gt 0 ] && server_is_up "SERVER EXISTS: $INSTANCE_NAME is up."
 
           # 2) What happened to the last job?
           LAST_ID=$(oci resource-manager job list --stack-id "$STACK_ID" --sort-by TIMECREATED \
                     --sort-order DESC --limit 1 --query 'data[0].id' --raw-output 2>/dev/null || true)
           if [ -n "$LAST_ID" ]; then
             echo "::add-mask::$LAST_ID"
-            LAST_STATE=$(oci resource-manager job get --job-id "$LAST_ID" \
-                         --query 'data."lifecycle-state"' --raw-output 2>/dev/null || true)
-            echo "Last job: $LAST_STATE"
-            case "$LAST_STATE" in
-              ACCEPTED|IN_PROGRESS|CANCELING)
+            LAST=$(oci resource-manager job get --job-id "$LAST_ID" \
+                   --query 'data.[operation,"lifecycle-state"] | join(`" "`, @)' --raw-output 2>/dev/null || true)
+            echo "Last job: $LAST"
+            case "$LAST" in
+              *ACCEPTED|*IN_PROGRESS|*CANCELING)
                 echo "A job is still running - skipping this round."; exit 0 ;;
-              FAILED)
+              "APPLY SUCCEEDED")
+                server_is_up "Last Apply SUCCEEDED - server should be up." ;;
+              *FAILED)
                 REASON=$(oci resource-manager job get-job-logs-content --job-id "$LAST_ID" --raw-output 2>/dev/null \
-                         | grep -oiE 'out of host capacity|toomanyrequests|notauthorized[a-z]*|limitexceeded' | head -1 || true)
+                         | grep -oiE 'out of host capacity|toomanyrequests|notauthorized[a-z]*|limitexceeded|error: [a-z0-9 ,.-]{0,60}' \
+                         | head -1 || true)
                 echo "Why it failed: ${REASON:-unknown (check the job in the Oracle console)}" ;;
             esac
           fi
 
           # 3) Try again
-          if ! JOB=$(oci resource-manager job create-apply-job --stack-id "$STACK_ID" \
-                     --execution-plan-strategy AUTO_APPROVED \
-                     --display-name "auto-retry-$(date -u +%m%d-%H%M)" \
-                     --query 'data.id' --raw-output 2>/dev/null) || [ -z "$JOB" ]; then
-            echo "Oracle didn't accept a new job (probably rate-limited). Will try next round."
-            exit 0
+          JOB=$(oci resource-manager job create-apply-job --stack-id "$STACK_ID" \
+                  --execution-plan-strategy AUTO_APPROVED \
+                  --display-name "auto-retry-$(date -u +%m%d-%H%M)" \
+                  --query 'data.id' --raw-output 2>/dev/null || true)
+          if [ -z "$JOB" ]; then
+            echo "Oracle didn't accept a new job (probably rate-limited or a job is running). Will try next round."
+          else
+            echo "::add-mask::$JOB"
+            echo "Started a new Apply job. The next run checks whether it worked."
           fi
-          echo "Started a new Apply job. The next run checks whether it worked."
 
-      - name: Queue the next try (~4 min)
-        if: success()
+      - name: Queue the next try
+        # runs even if an earlier step failed, so one blip can't kill the loop
+        if: ${{ !cancelled() && steps.check.outputs.done != 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
+          JOB_STATUS: ${{ job.status }}
         run: |
-          [ -f /tmp/server_exists ] && exit 0
-          sleep 240
-          gh api -X POST "repos/$GITHUB_REPOSITORY/actions/workflows/oracle-a1-retry.yml/dispatches" -f ref=main \
-            && echo "Next try queued." || echo "Couldn't queue next try - the cron backup will pick it up."
+          R="repos/$GITHUB_REPOSITORY/actions/workflows/$WORKFLOW_FILE"
+          if [ "$JOB_STATUS" != "success" ]; then
+            # Stop the loop if the last 3 finished runs ALSO failed (broken secrets etc.)
+            FAILS=$(gh api "$R/runs?per_page=10&status=completed" \
+                     --jq '[.workflow_runs[] | select(.conclusion=="failure" or .conclusion=="success")][:3] | map(select(.conclusion=="failure")) | length' || echo 0)
+            if [ "$FAILS" -ge 3 ]; then
+              gh api -X POST "repos/$GITHUB_REPOSITORY/issues" -f title="Oracle retry loop stopped (keeps failing)" \
+                -f body="4 runs in a row failed, so the loop paused itself. Check the latest run's log, fix the problem, then hit Run workflow." >/dev/null || true
+              gh api -X PUT "$R/disable" || true
+              echo "Too many failures in a row - loop paused, issue opened."; exit 1
+            fi
+            echo "This run failed - waiting 10 min before the next try."; sleep 600
+          else
+            sleep 240
+          fi
+          for i in 1 2 3; do
+            gh api -X POST "$R/dispatches" -f ref="$GITHUB_REF_NAME" && { echo "Next try queued."; exit 0; }
+            sleep 20
+          done
+          echo "Couldn't queue the next try - the hourly backup will restart the loop."
