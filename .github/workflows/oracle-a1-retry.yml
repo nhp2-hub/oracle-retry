@@ -11,7 +11,8 @@ name: Oracle A1 retry
 
 on:
   schedule:
-    - cron: "*/5 * * * *"   # every 5 min (GitHub sometimes runs these late)
+    - cron: "*/5 * * * *"   # backup only - GitHub often skips/delays these
+  # Main loop: each run waits ~4 min, then starts the next run itself.
   workflow_dispatch:
 
 permissions:
@@ -30,7 +31,7 @@ env:
 jobs:
   retry:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 12
     steps:
       - uses: actions/setup-python@v6
         with:
@@ -68,6 +69,7 @@ jobs:
 
           stop_retrying() {
             echo "$1"
+            touch /tmp/server_exists
             echo "Turning this workflow off so it stops retrying."
             gh workflow disable oracle-a1-retry.yml -R "$GITHUB_REPOSITORY" || true
             exit 0
@@ -131,3 +133,13 @@ jobs:
             exit 0
           fi
           echo "Started a new Apply job. The next run checks whether it worked."
+
+      - name: Queue the next try (~4 min)
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [ -f /tmp/server_exists ] && exit 0
+          sleep 240
+          gh api -X POST "repos/$GITHUB_REPOSITORY/actions/workflows/oracle-a1-retry.yml/dispatches" -f ref=main \
+            && echo "Next try queued." || echo "Couldn't queue next try - the cron backup will pick it up."
