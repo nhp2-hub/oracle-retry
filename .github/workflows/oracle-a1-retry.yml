@@ -149,7 +149,7 @@ jobs:
 
           # 3) Try to launch it, once per fault domain
           for FD in FAULT-DOMAIN-1 FAULT-DOMAIN-2 FAULT-DOMAIN-3; do
-            if ID=$(q compute instance launch -c "$TENANCY" --availability-domain "$AD" --fault-domain "$FD" \
+            if ID=$(q --no-retry compute instance launch -c "$TENANCY" --availability-domain "$AD" --fault-domain "$FD" \
                       --shape "$SHAPE" --shape-config "{\"ocpus\": $OCPUS, \"memoryInGBs\": $MEMORY_GB}" \
                       --image-id "$IMAGE" --subnet-id "$SUBNET" --assign-public-ip "$PUB" \
                       --display-name "$INSTANCE_NAME" --vnic-display-name vex1-vnic \
@@ -162,7 +162,7 @@ jobs:
             WHY=$(grep -oiE 'out of host capacity|toomanyrequests|limitexceeded|notauthorized[a-z]*|quota[a-z ]{0,30}|"message": "[^"]{0,90}' /tmp/oci_err | head -1)
             echo "$FD: ${WHY:-unknown error}"
             case "$WHY" in
-              *[Cc]apacity*) sleep 5 ;;                                     # try the next fault domain
+              *[Cc]apacity*) sleep 20 ;;                                     # try the next fault domain
               *[Tt]oo[Mm]any*) echo "Rate-limited - waiting for next round."; break ;;
               *) show_err; echo "Unexpected error - stopping this round."; break ;;
             esac
