@@ -1,7 +1,7 @@
 name: Oracle A1 retry
 
-# Keeps hitting "Apply" on the instance-vex stack until Oracle has free
-# A1 (ARM) capacity. When the server exists it opens a GitHub issue
+# Keeps asking Oracle to launch the instance-vex A1 (ARM) server directly
+# (no stack) until there's free capacity. When the server exists it opens a GitHub issue
 # (so you get an email/phone ping) and turns itself off.
 #
 # Needs 2 repo secrets:
@@ -24,8 +24,13 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  STACK_NAME: instance-vex
   INSTANCE_NAME: instance-vex
+  SUBNET_NAME: vex1-oracle-subnet
+  SHAPE: VM.Standard.A1.Flex
+  OCPUS: "1"
+  MEMORY_GB: "6"
+  # public half of your SSH key (safe to share - it only works with the private key you keep)
+  SSH_PUBLIC_KEY: ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDIhcS1CRpfJ2/iNDxVmCnnpWk2oIdVLMLOuyQd5f19cpNVNtBuV9bHA6xOSKg+ACvuFm5T5xDjWOdhJdEmAa2hfj9GWnsTE0lNrYHffF762ueFmIxkdWUsySlWHb7jNYyq9ZJYiPo/NvNKKYwh1a9gxV0dqCManPT+eMixD/pgiXPjekASqw/LG61POYo1AnVtvVGsadEZWTkfVjzBG8AoUnMgtWHA/eyGAh8uB37pFcFuJODZXmueRLopin2FSMNoMInAXdqMNaec221htvD118tl6BwtJPZYmyKw+PC0Dyt1aDqBFvXSsbZpyrrdp1gXbkZ7FmhjR0zpqdX4RmYR ssh-key-2026-11-08
   WORKFLOW_FILE: oracle-a1-retry.yml
   OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING: "True"
   SUPPRESS_LABEL_WARNING: "True"
@@ -73,7 +78,7 @@ jobs:
             grep -q "^$k=" ~/.oci/config || { echo "::error::OCI_CONFIG is missing the $k= line"; exit 1; }
           done
 
-      - name: Check server / retry Apply
+      - name: Check server / try to launch it
         id: check
         env:
           GH_TOKEN: ${{ github.token }}
@@ -86,78 +91,83 @@ jobs:
             echo "done=true" >> "$GITHUB_OUTPUT"
             gh api -X POST "repos/$GITHUB_REPOSITORY/issues" \
               -f title="Oracle server instance-vex is up" \
-              -f body="The retry loop got an A1 server. It has turned itself off. Next: add a public IP (if not patched), delete the API key, SSH in." \
-              >/dev/null || true
+              -f body="$2" >/dev/null || true
             gh api -X PUT "repos/$GITHUB_REPOSITORY/actions/workflows/$WORKFLOW_FILE/disable" || true
             echo "Workflow turned off."
             exit 0
+          }
+          q() { oci "$@" --raw-output 2>/tmp/oci_err; }
+          show_err() {
+            sed -E 's/ocid1\.[a-z0-9._-]+/<id>/g; s/([0-9a-f]{2}:){5,}[0-9a-f]{2}/<fingerprint>/g' /tmp/oci_err \
+              | grep -iE '"(code|message)"' | head -4 || true
           }
 
           TENANCY=$(grep -m1 '^tenancy=' ~/.oci/config | cut -d= -f2- || true)
           echo "::add-mask::$TENANCY"
 
-          # 0) Log in + find the stack (retry once for blips)
+          # 0) Log in (retry once for blips)
           RC=1
-          for try in 1 2; do
-            if STACK_ID=$(oci resource-manager stack list -c "$TENANCY" --display-name "$STACK_NAME" \
-                           --lifecycle-state ACTIVE --query 'data[0].id' --raw-output 2>/tmp/oci_err); then
-              RC=0; break
-            fi
+          for _ in 1 2; do
+            if AD=$(q iam availability-domain list -c "$TENANCY" --query 'data[0].name'); then RC=0; break; fi
             sleep 15
           done
-          if [ "$RC" -ne 0 ]; then
-            echo "--- what Oracle said (IDs hidden) ---"
-            sed -E 's/ocid1\.[a-z0-9._-]+/<id>/g; s/([0-9a-f]{2}:){5,}[0-9a-f]{2}/<fingerprint>/g' /tmp/oci_err \
-              | grep -viE 'opc-request-id|request_endpoint|client_version|timestamp' | head -15 || true
-            echo "::error::Couldn't log in to Oracle - check the OCI_CONFIG / OCI_KEY secrets"; exit 1
+          if [ "$RC" -ne 0 ] || [ -z "$AD" ]; then
+            show_err; echo "::error::Couldn't log in to Oracle - check the OCI_CONFIG / OCI_KEY secrets"; exit 1
           fi
-          if [ -z "${STACK_ID:-}" ]; then
-            echo "::error::Logged in, but no ACTIVE stack named $STACK_NAME was found"; exit 1
-          fi
-          echo "::add-mask::$STACK_ID"
-          echo "Logged in to Oracle and found the stack."
+          echo "::add-mask::$AD"
+          echo "Logged in to Oracle."
 
           # 1) Does the server already exist? (a failed check must NOT count as "no server")
-          if ! N=$(oci compute instance list -c "$TENANCY" --display-name "$INSTANCE_NAME" --all \
-                    --query "length(data[?\"lifecycle-state\"!='TERMINATED' && \"lifecycle-state\"!='TERMINATING'])" \
-                    --raw-output 2>/dev/null); then
+          if ! N=$(q compute instance list -c "$TENANCY" --display-name "$INSTANCE_NAME" --all \
+                    --query "length(data[?\"lifecycle-state\"!='TERMINATED' && \"lifecycle-state\"!='TERMINATING'])"); then
             echo "Couldn't check for the server this round - skipping to be safe."; exit 0
           fi
           case "$N" in ''|*[!0-9]*) N=0 ;; esac
-          [ "$N" -gt 0 ] && server_is_up "SERVER EXISTS: $INSTANCE_NAME is up."
+          [ "$N" -gt 0 ] && server_is_up "SERVER EXISTS: $INSTANCE_NAME is up." \
+            "The retry loop found $INSTANCE_NAME already running, so it turned itself off."
 
-          # 2) What happened to the last job?
-          LAST_ID=$(oci resource-manager job list --stack-id "$STACK_ID" --sort-by TIMECREATED \
-                    --sort-order DESC --limit 1 --query 'data[0].id' --raw-output 2>/dev/null || true)
-          if [ -n "$LAST_ID" ]; then
-            echo "::add-mask::$LAST_ID"
-            LAST=$(oci resource-manager job get --job-id "$LAST_ID" \
-                   --query 'data.[operation,"lifecycle-state"] | join(`" "`, @)' --raw-output 2>/dev/null || true)
-            echo "Last job: $LAST"
-            case "$LAST" in
-              *ACCEPTED|*IN_PROGRESS|*CANCELING)
-                echo "A job is still running - skipping this round."; exit 0 ;;
-              "APPLY SUCCEEDED")
-                server_is_up "Last Apply SUCCEEDED - server should be up." ;;
-              *FAILED)
-                REASON=$(oci resource-manager job get-job-logs-content --job-id "$LAST_ID" --raw-output 2>/dev/null \
-                         | grep -oiE 'out of host capacity|toomanyrequests|notauthorized[a-z]*|limitexceeded|error: [a-z0-9 ,.-]{0,60}' \
-                         | head -1 || true)
-                echo "Why it failed: ${REASON:-unknown (check the job in the Oracle console)}" ;;
+          # 2) Look up the subnet + newest Ubuntu 24.04 ARM image
+          SUBNET=$(q network subnet list -c "$TENANCY" --display-name "$SUBNET_NAME" --lifecycle-state AVAILABLE \
+                     --query 'data[0].id' || true)
+          if [ -z "$SUBNET" ]; then
+            show_err; echo "::error::Couldn't find the subnet $SUBNET_NAME"; exit 1
+          fi
+          echo "::add-mask::$SUBNET"
+          PROHIBIT=$(q network subnet get --subnet-id "$SUBNET" --query 'data."prohibit-public-ip-on-vnic"' || echo true)
+          if [ "$PROHIBIT" = "false" ]; then PUB=true; else PUB=false; fi
+          echo "Public IP on launch: $PUB"
+
+          IMAGE=$(q compute image list -c "$TENANCY" --operating-system "Canonical Ubuntu" \
+                    --operating-system-version "24.04" --shape "$SHAPE" --sort-by TIMECREATED --sort-order DESC --all \
+                    --query "data[?!contains(\"display-name\", 'Minimal')] | [0].id" || true)
+          if [ -z "$IMAGE" ]; then
+            show_err; echo "Couldn't look up the image this round - skipping."; exit 0
+          fi
+          echo "::add-mask::$IMAGE"
+
+          printf '%s\n' "$SSH_PUBLIC_KEY" > /tmp/key.pub
+
+          # 3) Try to launch it, once per fault domain
+          for FD in FAULT-DOMAIN-1 FAULT-DOMAIN-2 FAULT-DOMAIN-3; do
+            if ID=$(q compute instance launch -c "$TENANCY" --availability-domain "$AD" --fault-domain "$FD" \
+                      --shape "$SHAPE" --shape-config "{\"ocpus\": $OCPUS, \"memoryInGBs\": $MEMORY_GB}" \
+                      --image-id "$IMAGE" --subnet-id "$SUBNET" --assign-public-ip "$PUB" \
+                      --display-name "$INSTANCE_NAME" --vnic-display-name vex1-vnic \
+                      --ssh-authorized-keys-file /tmp/key.pub --query 'data.id'); then
+              echo "::add-mask::$ID"
+              if [ "$PUB" = "true" ]; then IPNOTE="It was created WITH a public IP."; else IPNOTE="The subnet blocks public IPs, so it has NO public IP yet - that needs fixing before SSH."; fi
+              server_is_up "LAUNCHED in $FD!" \
+                "Got an A1 server ($OCPUS OCPU / $MEMORY_GB GB, Ubuntu 24.04) in $FD. $IPNOTE Next: delete the API key, SSH in."
+            fi
+            WHY=$(grep -oiE 'out of host capacity|toomanyrequests|limitexceeded|notauthorized[a-z]*|quota[a-z ]{0,30}|"message": "[^"]{0,90}' /tmp/oci_err | head -1)
+            echo "$FD: ${WHY:-unknown error}"
+            case "$WHY" in
+              *[Cc]apacity*) sleep 5 ;;                                     # try the next fault domain
+              *[Tt]oo[Mm]any*) echo "Rate-limited - waiting for next round."; break ;;
+              *) show_err; echo "Unexpected error - stopping this round."; break ;;
             esac
-          fi
-
-          # 3) Try again
-          JOB=$(oci resource-manager job create-apply-job --stack-id "$STACK_ID" \
-                  --execution-plan-strategy AUTO_APPROVED \
-                  --display-name "auto-retry-$(date -u +%m%d-%H%M)" \
-                  --query 'data.id' --raw-output 2>/dev/null || true)
-          if [ -z "$JOB" ]; then
-            echo "Oracle didn't accept a new job (probably rate-limited or a job is running). Will try next round."
-          else
-            echo "::add-mask::$JOB"
-            echo "Started a new Apply job. The next run checks whether it worked."
-          fi
+          done
+          echo "No luck this round."
 
       - name: Queue the next try
         # runs even if an earlier step failed, so one blip can't kill the loop
