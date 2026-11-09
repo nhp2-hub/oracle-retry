@@ -147,8 +147,10 @@ jobs:
 
           printf '%s\n' "$SSH_PUBLIC_KEY" > /tmp/key.pub
 
-          # 3) Try to launch it, once per fault domain
-          for FD in FAULT-DOMAIN-1 FAULT-DOMAIN-2 FAULT-DOMAIN-3; do
+          # 3) Try to launch it. Oracle rate-limits back-to-back launches, so one try
+          #    per round, rotating through the 3 fault domains round by round.
+          FD="FAULT-DOMAIN-$(( GITHUB_RUN_NUMBER % 3 + 1 ))"
+          for FD in "$FD"; do
             if ID=$(q --no-retry compute instance launch -c "$TENANCY" --availability-domain "$AD" --fault-domain "$FD" \
                       --shape "$SHAPE" --shape-config "{\"ocpus\": $OCPUS, \"memoryInGBs\": $MEMORY_GB}" \
                       --image-id "$IMAGE" --subnet-id "$SUBNET" --assign-public-ip "$PUB" \
