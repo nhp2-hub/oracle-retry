@@ -1,19 +1,21 @@
 #!/bin/bash
+# NOTE: this runs via "bash -s" over SSH, so anything that reads stdin (ssh, git) must get </dev/null
+# or it eats the rest of the script.
 # Clones Vex1 onto the server and keeps it synced from GitHub every 5 min. Safe to re-run.
 set -euo pipefail
 DIR="$HOME/vex1"
 echo "== 1/3 check GitHub access"
 # (ssh -T always exits 1 on GitHub, so check the message, not the exit code)
-OUT=$(ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 -T github-vex1 2>&1 || true)
+OUT=$(ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 -T github-vex1 </dev/null 2>&1 || true)
 if ! grep -q 'successfully authenticated' <<<"$OUT"; then
   echo "ERROR: GitHub didn't accept the server's deploy key: $(head -1 <<<"$OUT")"; exit 1
 fi
 
 echo "== 2/3 get the vault (first time is slow - ~2 GB on a Micro)"
 if [ ! -d "$DIR/.git" ]; then
-  git clone -q --depth 1 git@github-vex1:nhp2-hub/Vex1.git "$DIR"
+  git clone -q --depth 1 git@github-vex1:nhp2-hub/Vex1.git "$DIR" </dev/null
 else
-  git -C "$DIR" pull -q --ff-only
+  git -C "$DIR" pull -q --ff-only </dev/null
 fi
 
 echo "== 3/3 auto-sync every 5 min"
