@@ -5,6 +5,8 @@ and it can't see outside the vault folder (or into .git).
 
 Served at  http://127.0.0.1:8765/<MCP_TOKEN>/mcp  and exposed to the internet
 by Tailscale Funnel. The long random token in the path is the password.
+
+Needs mcp<2 (this uses the v1 FastMCP API). Install with the "mcp" step in micro-setup.yml.
 """
 import os
 import pathlib
