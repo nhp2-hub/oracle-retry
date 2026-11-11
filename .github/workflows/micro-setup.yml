@@ -1,0 +1,71 @@
+name: Micro setup
+
+# Runs server/setup-micro.sh on vex-micro over SSH.
+# Needs repo secret MICRO_SSH_KEY = the private SSH key file (ssh-key-2026-11-08.key)
+# plus the OCI_CONFIG / OCI_KEY secrets (used to look up the server's IP).
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: micro-setup
+  cancel-in-progress: false
+
+env:
+  INSTANCE_NAME: vex-micro
+  OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING: "True"
+  SUPPRESS_LABEL_WARNING: "True"
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install OCI CLI
+        run: pip install -q "oci-cli==3.95.1"
+
+      - name: Write keys
+        env:
+          OCI_CONFIG: ${{ secrets.OCI_CONFIG }}
+          OCI_KEY: ${{ secrets.OCI_KEY }}
+          MICRO_SSH_KEY: ${{ secrets.MICRO_SSH_KEY }}
+        run: |
+          if [ -z "$MICRO_SSH_KEY" ]; then echo "::error::Add the MICRO_SSH_KEY secret first"; exit 1; fi
+          mkdir -p ~/.oci ~/.ssh
+          printf '%s\n' "$OCI_KEY" | tr -d '\r' | grep -v '^OCI_API_KEY' | sed '/^[[:space:]]*$/d' > ~/.oci/key.pem
+          grep -q BEGIN ~/.oci/key.pem || { { echo "-----BEGIN PRIVATE KEY-----"; cat ~/.oci/key.pem; echo "-----END PRIVATE KEY-----"; } > ~/.oci/k && mv ~/.oci/k ~/.oci/key.pem; }
+          { echo "[DEFAULT]"
+            printf '%s\n' "$OCI_CONFIG" | tr -d '\r' | grep -E '^[[:space:]]*(user|fingerprint|tenancy|region)[[:space:]]*=' \
+              | sed -E 's/[[:space:]]*#.*$//; s/[[:space:]]*=[[:space:]]*/=/'
+            echo "key_file=$HOME/.oci/key.pem"; } > ~/.oci/config
+          printf '%s\n' "$MICRO_SSH_KEY" | tr -d '\r' | sed '/^[[:space:]]*$/d' > ~/.ssh/micro
+          chmod 600 ~/.oci/key.pem ~/.oci/config ~/.ssh/micro
+          ssh-keygen -y -f ~/.ssh/micro >/dev/null || { echo "::error::MICRO_SSH_KEY isn't a valid private key - paste the whole .key file"; exit 1; }
+
+      - name: Find the server's IP
+        id: ip
+        run: |
+          TENANCY=$(grep -m1 '^tenancy=' ~/.oci/config | cut -d= -f2-); echo "::add-mask::$TENANCY"
+          ID=$(oci compute instance list -c "$TENANCY" --display-name "$INSTANCE_NAME" --lifecycle-state RUNNING \
+                 --query 'data[0].id' --raw-output); echo "::add-mask::$ID"
+          [ -n "$ID" ] || { echo "::error::$INSTANCE_NAME isn't running"; exit 1; }
+          IP=$(oci compute instance list-vnics --instance-id "$ID" --query 'data[0]."public-ip"' --raw-output)
+          [ -n "$IP" ] || { echo "::error::$INSTANCE_NAME has no public IP"; exit 1; }
+          echo "::add-mask::$IP"
+          echo "ip=$IP" >> "$GITHUB_OUTPUT"
+          echo "Found $INSTANCE_NAME."
+
+      - name: Run setup on the server
+        env:
+          IP: ${{ steps.ip.outputs.ip }}
+        run: |
+          SSH="ssh -i $HOME/.ssh/micro -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 -o ServerAliveInterval=30 ubuntu@$IP"
+          for i in 1 2 3; do $SSH true && break; echo "SSH not ready, retrying in 20s"; sleep 20; done
+          $SSH 'bash -s' < server/setup-micro.sh 2>&1 | grep -E '^==|Mem:|Swap:|/dev/|load average|^E:|rror' || true
+          echo "Setup finished."
