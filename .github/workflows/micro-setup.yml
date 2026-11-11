@@ -1,6 +1,6 @@
 name: Micro setup
 
-# Runs server/setup-micro.sh on vex-micro over SSH.
+# Runs a setup step (server/<step>.sh) on vex-micro over SSH.
 # Needs repo secret MICRO_SSH_KEY = the private SSH key file (ssh-key-2026-11-08.key)
 # plus the OCI_CONFIG / OCI_KEY secrets (used to look up the server's IP).
 
@@ -10,6 +10,11 @@ on:
       ip:
         description: "Server IP (leave blank to look it up)"
         required: false
+      step:
+        description: "Which setup step to run"
+        type: choice
+        options: [base, tailscale]
+        default: base
 
 concurrency:
   group: micro-setup
@@ -86,10 +91,19 @@ jobs:
         shell: bash {0}
         env:
           IP: ${{ steps.ip.outputs.ip }}
+          STEP: ${{ inputs.step }}
+          TS_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
         run: |
           SSH="ssh -i $HOME/.ssh/micro -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 -o ServerAliveInterval=30 ubuntu@$IP"
           for i in 1 2 3; do $SSH true && break; echo "SSH not ready, retrying in 20s"; sleep 20; done
-          $SSH 'bash -s' < server/setup-micro.sh > /tmp/out.txt 2>&1; RC=$?
-          grep -E '^==|Mem:|Swap:|/dev/|load average|^E:|rror' /tmp/out.txt || true
+          STEP="${STEP:-base}"
+          echo "Running step: $STEP"
+          if [ "$STEP" = tailscale ]; then
+            [ -n "$TS_AUTHKEY" ] || { echo "::error::Add the TAILSCALE_AUTHKEY secret first"; exit 1; }
+            $SSH "TS_AUTHKEY='$TS_AUTHKEY' bash -s" < server/tailscale.sh > /tmp/out.txt 2>&1; RC=$?
+          else
+            $SSH 'bash -s' < "server/$STEP.sh" > /tmp/out.txt 2>&1; RC=$?
+          fi
+          grep -E '^==|Mem:|Swap:|/dev/sd|load average|^E:|tailnet name|[Ee]rror:' /tmp/out.txt || true
           if [ "$RC" -ne 0 ]; then echo "::error::Setup script failed (exit $RC)"; tail -5 /tmp/out.txt; exit 1; fi
           echo "Setup finished."
