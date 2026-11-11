@@ -14,6 +14,7 @@ main() {
   echo "== 1/4 updating connector + status code"
   curl -fsSL "$RAW/vex1_mcp.py" -o "$DIR/vex1_mcp.py" </dev/null
   curl -fsSL "$RAW/vex1_status.py" -o "$DIR/vex1_status.py" </dev/null
+  curl -fsSL "$RAW/vex1_stream.py" -o "$DIR/vex1_stream.py" </dev/null
   "$DIR/venv/bin/pip" install -q "mcp<2" </dev/null
 
   echo "== 2/4 alert topic"

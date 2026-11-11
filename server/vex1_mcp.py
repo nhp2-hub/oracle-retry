@@ -18,10 +18,11 @@ import sys
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.requests import Request
-from starlette.responses import HTMLResponse, JSONResponse
+from starlette.responses import HTMLResponse, JSONResponse, StreamingResponse
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import vex1_status  # noqa: E402  (health checks, same folder)
+import vex1_stream  # noqa: E402  (fast live numbers for the HUD)
 
 VAULT = pathlib.Path(os.environ.get("VAULT", str(pathlib.Path.home() / "vex1"))).resolve()
 TOKEN = os.environ["MCP_TOKEN"]
@@ -181,6 +182,13 @@ async def status_page(request: Request):
     if request.query_params.get("format") == "json":
         return JSONResponse(st)
     return HTMLResponse(vex1_status.render_html(st), headers={"Cache-Control": "no-store"})
+
+
+# Live CPU/RAM/network numbers for the status page (Server-Sent Events, ~100x/s)
+@mcp.custom_route(f"/{TOKEN}/stream", methods=["GET"])
+async def status_stream(request: Request):
+    return StreamingResponse(vex1_stream.stream(request), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 if __name__ == "__main__":
