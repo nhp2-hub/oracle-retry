@@ -13,7 +13,7 @@ on:
       step:
         description: "Which setup step to run"
         type: choice
-        options: [base, tailscale, lockdown]
+        options: [base, tailscale, lockdown, vault-key, vault]
         default: base
 
 concurrency:
@@ -28,7 +28,7 @@ env:
 jobs:
   setup:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
 
@@ -121,7 +121,7 @@ jobs:
           else
             $SSH 'bash -s' < "server/$STEP.sh" > /tmp/out.txt 2>&1; RC=$?
           fi
-          grep -E '^==|Mem:|Swap:|/dev/sd|load average|^E:|tailnet name|[Ee]rror:|^ERROR|^WARNING|^rule:|^saved:' /tmp/out.txt || true
+          grep -E '^==|Mem:|Swap:|/dev/sd|load average|^E:|tailnet name|[Ee]rror:|^ERROR|^WARNING|^rule:|^saved:|^DEPLOY KEY|^vault files|^next sync' /tmp/out.txt || true
           if [ "$RC" -ne 0 ]; then echo "::error::Setup script failed (exit $RC)"; tail -5 /tmp/out.txt; exit 1; fi
           echo "Setup finished."
 
