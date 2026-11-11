@@ -1,0 +1,196 @@
+name: Oracle Micro launch
+
+# Creates the free 1 GB AMD Micro server (vex-micro), retrying if Oracle
+# is out of capacity. Run it from the Actions tab with "Run workflow". When the server exists it opens a GitHub issue
+# (so you get an email/phone ping) and turns itself off.
+#
+# Needs 2 repo secrets:
+#   OCI_CONFIG = the "Configuration file preview" text from Oracle's API key page
+#   OCI_KEY    = full contents of the downloaded API private key (.pem)
+#
+# This repo is public, so the logs never print account IDs.
+
+on:
+  workflow_dispatch:      # start it by hand; it re-runs itself until the server exists
+
+permissions:
+  actions: write   # start the next run / disable itself
+  issues: write    # "server is up" notification
+
+concurrency:
+  group: oracle-micro-launch
+  cancel-in-progress: false
+
+env:
+  INSTANCE_NAME: vex-micro
+  SUBNET_NAME: vex1-oracle-subnet
+  SHAPE: VM.Standard.E2.1.Micro
+  # public half of your SSH key (safe to share - it only works with the private key you keep)
+  SSH_PUBLIC_KEY: ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDIhcS1CRpfJ2/iNDxVmCnnpWk2oIdVLMLOuyQd5f19cpNVNtBuV9bHA6xOSKg+ACvuFm5T5xDjWOdhJdEmAa2hfj9GWnsTE0lNrYHffF762ueFmIxkdWUsySlWHb7jNYyq9ZJYiPo/NvNKKYwh1a9gxV0dqCManPT+eMixD/pgiXPjekASqw/LG61POYo1AnVtvVGsadEZWTkfVjzBG8AoUnMgtWHA/eyGAh8uB37pFcFuJODZXmueRLopin2FSMNoMInAXdqMNaec221htvD118tl6BwtJPZYmyKw+PC0Dyt1aDqBFvXSsbZpyrrdp1gXbkZ7FmhjR0zpqdX4RmYR ssh-key-2026-11-08
+  WORKFLOW_FILE: oracle-micro-launch.yml
+  OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING: "True"
+  SUPPRESS_LABEL_WARNING: "True"
+
+jobs:
+  retry:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install OCI CLI
+        run: |
+          for i in 1 2 3; do
+            pip install -q "oci-cli==3.95.1" && exit 0
+            echo "pip install failed, retrying in 20s"; sleep 20
+          done
+          exit 1
+
+      - name: Write OCI config
+        env:
+          OCI_CONFIG: ${{ secrets.OCI_CONFIG }}
+          OCI_KEY: ${{ secrets.OCI_KEY }}
+        run: |
+          if [ -z "$OCI_CONFIG" ] || [ -z "$OCI_KEY" ]; then
+            echo "::error::Add the OCI_CONFIG and OCI_KEY repo secrets first"
+            exit 1
+          fi
+          mkdir -p ~/.oci
+          printf '%s\n' "$OCI_KEY" | tr -d '\r' | grep -v '^OCI_API_KEY' | sed '/^[[:space:]]*$/d' > ~/.oci/key.pem
+          # If the BEGIN/END lines got left out when copying, add them back
+          if ! grep -q 'BEGIN' ~/.oci/key.pem; then
+            { echo "-----BEGIN PRIVATE KEY-----"; cat ~/.oci/key.pem; echo "-----END PRIVATE KEY-----"; } > ~/.oci/key.tmp
+            mv ~/.oci/key.tmp ~/.oci/key.pem
+          fi
+          { echo "[DEFAULT]"
+            printf '%s\n' "$OCI_CONFIG" | tr -d '\r' | grep -E '^[[:space:]]*(user|fingerprint|tenancy|region)[[:space:]]*=' \
+              | sed -E 's/[[:space:]]*#.*$//; s/[[:space:]]*=[[:space:]]*/=/'
+            echo "key_file=$HOME/.oci/key.pem"
+          } > ~/.oci/config
+          chmod 600 ~/.oci/key.pem ~/.oci/config
+          for k in user fingerprint tenancy region; do
+            grep -q "^$k=" ~/.oci/config || { echo "::error::OCI_CONFIG is missing the $k= line"; exit 1; }
+          done
+
+      - name: Check server / try to launch it
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -uo pipefail
+
+          server_is_up() {
+            echo "$1"
+            echo "done=true" >> "$GITHUB_OUTPUT"
+            gh api -X POST "repos/$GITHUB_REPOSITORY/issues" \
+              -f title="Oracle server vex-micro is up" \
+              -f body="$2" >/dev/null || true
+            gh api -X PUT "repos/$GITHUB_REPOSITORY/actions/workflows/$WORKFLOW_FILE/disable" || true
+            echo "Workflow turned off."
+            exit 0
+          }
+          q() { oci "$@" --raw-output 2>/tmp/oci_err; }
+          show_err() {
+            sed -E 's/ocid1\.[a-z0-9._-]+/<id>/g; s/([0-9a-f]{2}:){5,}[0-9a-f]{2}/<fingerprint>/g' /tmp/oci_err \
+              | grep -iE '"(code|message)"' | head -4 || true
+          }
+
+          TENANCY=$(grep -m1 '^tenancy=' ~/.oci/config | cut -d= -f2- || true)
+          echo "::add-mask::$TENANCY"
+
+          # 0) Log in (retry once for blips)
+          RC=1
+          for _ in 1 2; do
+            if AD=$(q iam availability-domain list -c "$TENANCY" --query 'data[0].name'); then RC=0; break; fi
+            sleep 15
+          done
+          if [ "$RC" -ne 0 ] || [ -z "$AD" ]; then
+            show_err; echo "::error::Couldn't log in to Oracle - check the OCI_CONFIG / OCI_KEY secrets"; exit 1
+          fi
+          echo "::add-mask::$AD"
+          echo "Logged in to Oracle."
+
+          # 1) Does the server already exist? (a failed check must NOT count as "no server")
+          if ! N=$(q compute instance list -c "$TENANCY" --display-name "$INSTANCE_NAME" --all \
+                    --query "length(data[?\"lifecycle-state\"!='TERMINATED' && \"lifecycle-state\"!='TERMINATING'])"); then
+            echo "Couldn't check for the server this round - skipping to be safe."; exit 0
+          fi
+          case "$N" in ''|*[!0-9]*) N=0 ;; esac
+          [ "$N" -gt 0 ] && server_is_up "SERVER EXISTS: $INSTANCE_NAME is up." \
+            "The retry loop found $INSTANCE_NAME already running, so it turned itself off."
+
+          # 2) Look up the subnet + newest Ubuntu 24.04 Minimal (x86) image
+          SUBNET=$(q network subnet list -c "$TENANCY" --display-name "$SUBNET_NAME" --lifecycle-state AVAILABLE \
+                     --query 'data[0].id' || true)
+          if [ -z "$SUBNET" ]; then
+            show_err; echo "::error::Couldn't find the subnet $SUBNET_NAME"; exit 1
+          fi
+          echo "::add-mask::$SUBNET"
+          PROHIBIT=$(q network subnet get --subnet-id "$SUBNET" --query 'data."prohibit-public-ip-on-vnic"' || echo true)
+          if [ "$PROHIBIT" = "false" ]; then PUB=true; else PUB=false; fi
+          echo "Public IP on launch: $PUB"
+
+          IMAGE=$(q compute image list -c "$TENANCY" --operating-system "Canonical Ubuntu" \
+                    --operating-system-version "24.04" --shape "$SHAPE" --sort-by TIMECREATED --sort-order DESC --all \
+                    --query "data[?contains(\"display-name\", 'Minimal') && !contains(\"display-name\", 'aarch64')] | [0].id" || true)
+          if [ -z "$IMAGE" ]; then
+            show_err; echo "Couldn't look up the image this round - skipping."; exit 0
+          fi
+          echo "::add-mask::$IMAGE"
+
+          printf '%s\n' "$SSH_PUBLIC_KEY" > /tmp/key.pub
+
+          # 3) Try to launch it. Oracle rate-limits back-to-back launches, so one try
+          #    per round, rotating through the 3 fault domains round by round.
+          FD="FAULT-DOMAIN-$(( GITHUB_RUN_NUMBER % 3 + 1 ))"
+          for FD in "$FD"; do
+            if ID=$(q --no-retry compute instance launch -c "$TENANCY" --availability-domain "$AD" --fault-domain "$FD" \
+                      --shape "$SHAPE" \
+                      --image-id "$IMAGE" --subnet-id "$SUBNET" --assign-public-ip "$PUB" \
+                      --display-name "$INSTANCE_NAME" --vnic-display-name vex-micro-vnic \
+                      --ssh-authorized-keys-file /tmp/key.pub --query 'data.id'); then
+              echo "::add-mask::$ID"
+              if [ "$PUB" = "true" ]; then IPNOTE="It was created WITH a public IP."; else IPNOTE="The subnet blocks public IPs, so it has NO public IP yet - that needs fixing before SSH."; fi
+              server_is_up "LAUNCHED in $FD!" \
+                "Got the Micro server (1 GB, Ubuntu 24.04 Minimal) in $FD. $IPNOTE Next: SSH in. (Keep the API key - the A1 loop still uses it.)"
+            fi
+            WHY=$(grep -oiE 'out of host capacity|toomanyrequests|limitexceeded|notauthorized[a-z]*|quota[a-z ]{0,30}|"message": "[^"]{0,90}' /tmp/oci_err | head -1)
+            echo "$FD: ${WHY:-unknown error}"
+            case "$WHY" in
+              *[Cc]apacity*) sleep 20 ;;                                     # try the next fault domain
+              *[Tt]oo[Mm]any*) echo "Rate-limited - waiting for next round."; break ;;
+              *) show_err; echo "Unexpected error - stopping this round."; break ;;
+            esac
+          done
+          echo "No luck this round."
+
+      - name: Queue the next try
+        # runs even if an earlier step failed, so one blip can't kill the loop
+        if: ${{ !cancelled() && steps.check.outputs.done != 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          R="repos/$GITHUB_REPOSITORY/actions/workflows/$WORKFLOW_FILE"
+          if [ "$JOB_STATUS" != "success" ]; then
+            # Stop the loop if the last 3 finished runs ALSO failed (broken secrets etc.)
+            FAILS=$(gh api "$R/runs?per_page=10&status=completed" \
+                     --jq '[.workflow_runs[] | select(.conclusion=="failure" or .conclusion=="success")][:3] | map(select(.conclusion=="failure")) | length' || echo 0)
+            if [ "$FAILS" -ge 3 ]; then
+              gh api -X POST "repos/$GITHUB_REPOSITORY/issues" -f title="Oracle retry loop stopped (keeps failing)" \
+                -f body="4 runs in a row failed, so the loop paused itself. Check the latest run's log, fix the problem, then hit Run workflow." >/dev/null || true
+              gh api -X PUT "$R/disable" || true
+              echo "Too many failures in a row - loop paused, issue opened."; exit 1
+            fi
+            echo "This run failed - waiting 10 min before the next try."; sleep 600
+          else
+            sleep 240
+          fi
+          for i in 1 2 3; do
+            gh api -X POST "$R/dispatches" -f ref="$GITHUB_REF_NAME" && { echo "Next try queued."; exit 0; }
+            sleep 20
+          done
+          echo "Couldn't queue the next try - hit Run workflow again to restart it."
