@@ -3,8 +3,11 @@
 set -euo pipefail
 DIR="$HOME/vex1"
 echo "== 1/3 check GitHub access"
-ssh -o StrictHostKeyChecking=accept-new -T github-vex1 2>&1 | grep -q 'successfully authenticated' \
-  || { echo "ERROR: GitHub doesn't accept the server's deploy key yet - add it to Vex1 first"; exit 1; }
+# (ssh -T always exits 1 on GitHub, so check the message, not the exit code)
+OUT=$(ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 -T github-vex1 2>&1 || true)
+if ! grep -q 'successfully authenticated' <<<"$OUT"; then
+  echo "ERROR: GitHub didn't accept the server's deploy key: $(head -1 <<<"$OUT")"; exit 1
+fi
 
 echo "== 2/3 get the vault (first time is slow - ~2 GB on a Micro)"
 if [ ! -d "$DIR/.git" ]; then
