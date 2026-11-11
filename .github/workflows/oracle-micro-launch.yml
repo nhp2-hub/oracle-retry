@@ -133,9 +133,15 @@ jobs:
           if [ "$PROHIBIT" = "false" ]; then PUB=true; else PUB=false; fi
           echo "Public IP on launch: $PUB"
 
+          # (Minimal images are listed under version "24.04 Minimal", so match on the name instead)
           IMAGE=$(q compute image list -c "$TENANCY" --operating-system "Canonical Ubuntu" \
-                    --operating-system-version "24.04" --shape "$SHAPE" --sort-by TIMECREATED --sort-order DESC --all \
-                    --query "data[?contains(\"display-name\", 'Minimal') && !contains(\"display-name\", 'aarch64')] | [0].id" || true)
+                    --shape "$SHAPE" --sort-by TIMECREATED --sort-order DESC --all \
+                    --query "data[?contains(\"display-name\", '24.04') && contains(\"display-name\", 'Minimal') && !contains(\"display-name\", 'aarch64')] | [0].id" || true)
+          if [ -z "$IMAGE" ]; then
+            echo "No Minimal image matched - images Oracle offers for this shape:"
+            q compute image list -c "$TENANCY" --operating-system "Canonical Ubuntu" --shape "$SHAPE" --all \
+              --query 'data[].["display-name"] | [0:8]' || show_err
+          fi
           if [ -z "$IMAGE" ]; then
             show_err; echo "Couldn't look up the image this round - skipping."; exit 0
           fi
