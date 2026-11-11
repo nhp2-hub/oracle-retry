@@ -48,8 +48,16 @@ jobs:
             printf '%s\n' "$OCI_CONFIG" | tr -d '\r' | grep -E '^[[:space:]]*(user|fingerprint|tenancy|region)[[:space:]]*=' \
               | sed -E 's/[[:space:]]*#.*$//; s/[[:space:]]*=[[:space:]]*/=/'
             echo "key_file=$HOME/.oci/key.pem"; } > ~/.oci/config
-          printf '%s\n' "$MICRO_SSH_KEY" | tr -d '\r' | sed '/^[[:space:]]*$/d' > ~/.ssh/micro
+          printf '%s\n' "$MICRO_SSH_KEY" | tr -d '\r' | sed '/^[[:space:]]*$/d; s/^[[:space:]]*//; s/[[:space:]]*$//' > ~/.ssh/micro
+          if grep -q '^ssh-' ~/.ssh/micro; then echo "::error::MICRO_SSH_KEY has a PUBLIC key (starts with ssh-rsa). Paste the .key file instead."; exit 1; fi
+          if ! grep -q 'BEGIN' ~/.ssh/micro; then
+            # BEGIN/END lines got left out when copying - add them back
+            { echo "-----BEGIN PRIVATE KEY-----"; cat ~/.ssh/micro; echo "-----END PRIVATE KEY-----"; } > ~/.ssh/m && mv ~/.ssh/m ~/.ssh/micro
+            echo "Note: added missing BEGIN/END lines to the SSH key."
+          fi
+          echo "Key shape: $(head -1 ~/.ssh/micro | grep -o 'BEGIN [A-Z ]*KEY' || echo 'no header'), $(wc -l < ~/.ssh/micro) lines"
           chmod 600 ~/.oci/key.pem ~/.oci/config ~/.ssh/micro
+          chmod 600 ~/.ssh/micro
           ssh-keygen -y -f ~/.ssh/micro >/dev/null || { echo "::error::MICRO_SSH_KEY isn't a valid private key - paste the whole .key file"; exit 1; }
           echo "Key fingerprint: $(ssh-keygen -lf ~/.ssh/micro | awk '{print $2}')"
 
