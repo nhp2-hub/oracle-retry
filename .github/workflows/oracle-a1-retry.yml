@@ -29,8 +29,6 @@ env:
   SHAPE: VM.Standard.A1.Flex
   OCPUS: "1"
   MEMORY_GB: "6"
-  # public half of your SSH key (safe to share - it only works with the private key you keep)
-  SSH_PUBLIC_KEY: ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDIhcS1CRpfJ2/iNDxVmCnnpWk2oIdVLMLOuyQd5f19cpNVNtBuV9bHA6xOSKg+ACvuFm5T5xDjWOdhJdEmAa2hfj9GWnsTE0lNrYHffF762ueFmIxkdWUsySlWHb7jNYyq9ZJYiPo/NvNKKYwh1a9gxV0dqCManPT+eMixD/pgiXPjekASqw/LG61POYo1AnVtvVGsadEZWTkfVjzBG8AoUnMgtWHA/eyGAh8uB37pFcFuJODZXmueRLopin2FSMNoMInAXdqMNaec221htvD118tl6BwtJPZYmyKw+PC0Dyt1aDqBFvXSsbZpyrrdp1gXbkZ7FmhjR0zpqdX4RmYR ssh-key-2026-11-08
   WORKFLOW_FILE: oracle-a1-retry.yml
   OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING: "True"
   SUPPRESS_LABEL_WARNING: "True"
@@ -146,15 +144,24 @@ jobs:
           fi
           echo "::add-mask::$IMAGE"
 
-          # Use the public half of YOUR private key (MICRO_SSH_KEY secret) so the key you have opens the server
-          if [ -n "${SSH_PRIVATE:-}" ] && printf '%s\n' "$SSH_PRIVATE" | tr -d '\r' | sed '/^[[:space:]]*$/d' > /tmp/key.priv \
-             && chmod 600 /tmp/key.priv && ssh-keygen -y -f /tmp/key.priv > /tmp/key.pub 2>/dev/null; then
-            echo "SSH key: using the public half of the MICRO_SSH_KEY secret."
+          # Use the public half of YOUR private key (MICRO_SSH_KEY secret) so the key you have opens the server.
+          # Never fall back to some other key - a server you can't log into is worse than no server.
+          printf '%s\n' "${SSH_PRIVATE:-}" | tr -d '\r' | sed '/^[[:space:]]*$/d; s/^[[:space:]]*//; s/[[:space:]]*$//' > /tmp/body
+          OK=""
+          if grep -q 'BEGIN' /tmp/body; then
+            cp /tmp/body /tmp/key.priv; chmod 600 /tmp/key.priv
+            ssh-keygen -y -f /tmp/key.priv > /tmp/key.pub 2>/dev/null && OK=1
           else
-            printf '%s\n' "$SSH_PUBLIC_KEY" > /tmp/key.pub
-            echo "SSH key: MICRO_SSH_KEY secret missing/invalid - using the built-in public key."
+            for T in "RSA PRIVATE KEY" "PRIVATE KEY" "OPENSSH PRIVATE KEY"; do
+              { echo "-----BEGIN $T-----"; cat /tmp/body; echo "-----END $T-----"; } > /tmp/key.priv; chmod 600 /tmp/key.priv
+              ssh-keygen -y -f /tmp/key.priv > /tmp/key.pub 2>/dev/null && { OK=1; break; }
+            done
           fi
-          rm -f /tmp/key.priv
+          rm -f /tmp/key.priv /tmp/body
+          if [ -z "$OK" ]; then
+            echo "::error::MICRO_SSH_KEY secret is missing or not a valid private key - not launching a server you couldn't log into"; exit 1
+          fi
+          echo "SSH key: $(ssh-keygen -lf /tmp/key.pub | awk '{print $2}') (from MICRO_SSH_KEY)"
 
           # 3) Try to launch it. Oracle rate-limits back-to-back launches, so one try
           #    per round, rotating through the 3 fault domains round by round.
