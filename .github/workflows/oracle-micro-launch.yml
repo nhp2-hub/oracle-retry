@@ -78,6 +78,7 @@ jobs:
         id: check
         env:
           GH_TOKEN: ${{ github.token }}
+          SSH_PRIVATE: ${{ secrets.MICRO_SSH_KEY }}
         shell: bash
         run: |
           set -uo pipefail
@@ -147,7 +148,15 @@ jobs:
           fi
           echo "::add-mask::$IMAGE"
 
-          printf '%s\n' "$SSH_PUBLIC_KEY" > /tmp/key.pub
+          # Use the public half of YOUR private key (MICRO_SSH_KEY secret) so the key you have opens the server
+          if [ -n "${SSH_PRIVATE:-}" ] && printf '%s\n' "$SSH_PRIVATE" | tr -d '\r' | sed '/^[[:space:]]*$/d' > /tmp/key.priv \
+             && chmod 600 /tmp/key.priv && ssh-keygen -y -f /tmp/key.priv > /tmp/key.pub 2>/dev/null; then
+            echo "SSH key: using the public half of the MICRO_SSH_KEY secret."
+          else
+            printf '%s\n' "$SSH_PUBLIC_KEY" > /tmp/key.pub
+            echo "SSH key: MICRO_SSH_KEY secret missing/invalid - using the built-in public key."
+          fi
+          rm -f /tmp/key.priv
 
           # 3) Try to launch it. Oracle rate-limits back-to-back launches, so one try
           #    per round, rotating through the 3 fault domains round by round.
