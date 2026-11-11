@@ -6,14 +6,22 @@ and it can't see outside the vault folder (or into .git).
 Served at  http://127.0.0.1:8765/<MCP_TOKEN>/mcp  and exposed to the internet
 by Tailscale Funnel. The long random token in the path is the password.
 
+Also serves a status page at  /<MCP_TOKEN>/status  (health checks live in vex1_status.py).
+
 Needs mcp<2 (this uses the v1 FastMCP API). Install with the "mcp" step in micro-setup.yml.
 """
 import os
 import pathlib
 import subprocess
+import sys
 
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
+from starlette.requests import Request
+from starlette.responses import HTMLResponse, JSONResponse
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import vex1_status  # noqa: E402  (health checks, same folder)
 
 VAULT = pathlib.Path(os.environ.get("VAULT", str(pathlib.Path.home() / "vex1"))).resolve()
 TOKEN = os.environ["MCP_TOKEN"]
@@ -156,6 +164,23 @@ def list_folder(path: str = "", depth: int = 1) -> str:
 
     walk(root, 1)
     return _cap(f"[{_rel(root) if root != VAULT else '(vault top)'}]\n" + "\n".join(out))
+
+
+@mcp.tool()
+def status() -> str:
+    """Health check of Neel's vex-micro server: memory, disk, vault sync, connector,
+    Tailscale/Funnel, last Canvas sync, the A1 retry loop and the last PC push."""
+    return vex1_status.render_text(vex1_status.collect())
+
+
+# Status page for Neel's iPad: https://<funnel host>/<MCP_TOKEN>/status  (add ?format=json for JSON)
+@mcp.custom_route(f"/{TOKEN}/status", methods=["GET"])
+async def status_page(request: Request):
+    import anyio
+    st = await anyio.to_thread.run_sync(vex1_status.collect)
+    if request.query_params.get("format") == "json":
+        return JSONResponse(st)
+    return HTMLResponse(vex1_status.render_html(st), headers={"Cache-Control": "no-store"})
 
 
 if __name__ == "__main__":
