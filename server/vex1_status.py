@@ -260,40 +260,100 @@ def collect():
     return {"overall": worst, "checked_at": time.time(), "checks": out}
 
 
-# ---------- page ----------
+# ---------- page (HUD style) ----------
 ICON = {"ok": "✅", "warn": "⚠️", "bad": "❌", "info": "ℹ️"}
 HEADLINE = {"ok": "All good 😎", "warn": "Mostly good, a few things to look at 👀", "bad": "Something's broken 🚨"}
+HUD_WORD = {"ok": "OK", "warn": "WATCH", "bad": "DOWN", "info": "INFO"}
+HUD_HEAD = {"ok": "ALL SYSTEMS NOMINAL", "warn": "SYSTEMS ONLINE · CHECK FLAGGED ITEMS", "bad": "ALERT · SYSTEM FAILURE"}
+HUD_COLOR = {"ok": "#3ddc97", "warn": "#ffb547", "bad": "#ff5d6c", "info": "#8fd3ff"}
+
+
+def _ring(pct, label, sub, color):
+    r = 58
+    c = 2 * 3.14159265 * r
+    off = c * (1 - max(0, min(100, pct)) / 100)
+    return f"""<div class="ring"><svg viewBox="0 0 150 150" role="img" aria-label="{label} {pct:.0f}%">
+<circle cx="75" cy="75" r="70" fill="none" stroke="rgba(124,196,255,.15)" stroke-width="1"/>
+<g class="spin"><circle cx="75" cy="75" r="70" fill="none" stroke="{color}" stroke-width="1.5" stroke-dasharray="4 14" opacity=".6"/></g>
+<circle cx="75" cy="75" r="{r}" fill="none" stroke="rgba(124,196,255,.12)" stroke-width="8"/>
+<circle cx="75" cy="75" r="{r}" fill="none" stroke="{color}" stroke-width="8" stroke-linecap="round"
+ stroke-dasharray="{c:.1f}" stroke-dashoffset="{off:.1f}" transform="rotate(-90 75 75)" style="filter:drop-shadow(0 0 6px {color})"/>
+<text x="75" y="83" text-anchor="middle" fill="#e6f6ff" font-size="26" font-family="Chakra Petch,monospace">{pct:.0f}%</text></svg>
+<b>{html.escape(label)}</b><span>{html.escape(sub)}</span></div>"""
+
+
+def _pct(detail, word):
+    """Pull a number like 'RAM 27%' out of a check's detail text."""
+    import re
+    m = re.search(word + r"\D{0,12}?(\d+)%", detail)
+    return float(m.group(1)) if m else 0.0
 
 
 def render_html(st):
-    rows = "\n".join(
-        f'<div class="row {c["level"]}"><span class="i">{ICON[c["level"]]}</span>'
-        f'<div><b>{html.escape(c["name"])}</b><br><span>{html.escape(c["detail"])}</span></div></div>'
-        for c in st["checks"])
+    checks = st["checks"]
+    by = {c["name"]: c for c in checks}
+    n_ok = sum(c["level"] in ("ok", "info") for c in checks)
+    sys_color = HUD_COLOR[st["overall"]] if st["overall"] != "ok" else "#3ddc97"
+    mem = by.get("Memory", {"detail": "", "level": "ok"})
+    disk = by.get("Disk", {"detail": "", "level": "ok"})
+    ram = _pct(mem["detail"], "RAM")
+    swap = _pct(mem["detail"], "swap")
+    dpct = _pct(disk["detail"], "")
+    dfree = disk["detail"].split("·")[1].strip() if "·" in disk["detail"] else ""
+    ring_col = lambda c, base: HUD_COLOR[c["level"]] if c["level"] in ("warn", "bad") else base
+    rings = (_ring(100 * n_ok / max(1, len(checks)), "Systems", f"{n_ok}/{len(checks)} nominal", sys_color)
+             + _ring(ram, "Memory", f"swap {swap:.0f}%", ring_col(mem, "#7cc4ff"))
+             + _ring(dpct, "Disk", dfree or "disk", ring_col(disk, "#a78bfa")))
+    order = {"bad": 0, "warn": 1, "ok": 2, "info": 3}
+    items = "\n".join(
+        f'<div class="it {c["level"]}"><div><div class="tag" style="color:{HUD_COLOR[c["level"]]}">● {HUD_WORD[c["level"]]}</div>'
+        f'{html.escape(c["name"])}</div><em>{html.escape(c["detail"])}</em></div>'
+        for c in sorted(checks, key=lambda c: order[c["level"]]))
     topic = ntfy_topic()
-    alerts = (f'Alerts go to ntfy topic <code>{html.escape(topic)}</code>' if topic
-              else "Phone alerts aren't set up yet")
+    alerts = (f'ALERTS → NTFY <code>{html.escape(topic)}</code>' if topic else "PHONE ALERTS NOT SET UP")
+    when = datetime.fromtimestamp(st["checked_at"], TZ).strftime("%b %d · %I:%M:%S %p").upper().replace(" 0", " ")
     return f"""<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="30">
-<meta name="robots" content="noindex"><title>Vex1 status</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta http-equiv="refresh" content="30"><meta name="robots" content="noindex">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#05080c"><title>Vex1 HUD</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600&display=swap" rel="stylesheet">
 <style>
-:root{{color-scheme:light dark;--bg:#f5f5f4;--card:#fff;--muted:#6b7280}}
-@media(prefers-color-scheme:dark){{:root{{--bg:#111;--card:#1c1c1e;--muted:#9ca3af}}}}
-body{{font:16px/1.4 -apple-system,system-ui,sans-serif;background:var(--bg);margin:0;padding:20px;max-width:640px;margin:auto}}
-h1{{font-size:22px;margin:4px 0}} .sub{{color:var(--muted);font-size:13px;margin-bottom:16px}}
-.big{{padding:14px 16px;border-radius:14px;font-weight:600;margin-bottom:14px;background:var(--card)}}
-.big.ok{{border-left:6px solid #22c55e}} .big.warn{{border-left:6px solid #f59e0b}} .big.bad{{border-left:6px solid #ef4444}}
-.row{{display:flex;gap:12px;background:var(--card);padding:12px 14px;border-radius:12px;margin:8px 0}}
-.row span{{color:var(--muted);font-size:14px}} .row .i{{font-size:20px;color:inherit}}
-.row.bad{{outline:2px solid #ef4444}} .row.warn{{outline:1px solid #f59e0b}}
-code{{font-size:12px}} footer{{color:var(--muted);font-size:12px;margin-top:16px}}
-</style></head><body>
-<h1>🖥️ Vex1 status</h1>
-<div class="sub">Checked {_local(st["checked_at"])} (Edmonton time) · refreshes every 30 s</div>
-<div class="big {st["overall"]}">{HEADLINE[st["overall"]]}</div>
-{rows}
-<footer>{alerts} · the outside watchdog also checks every ~30 min.</footer>
-</body></html>"""
+:root{{--bg:#05080c;--line:rgba(124,196,255,.22);--txt:#bfe6ff;--dim:#6d9cbd;--hi:#e6f6ff;color-scheme:dark}}
+*{{box-sizing:border-box}}
+html,body{{margin:0;min-height:100%;background:radial-gradient(1200px 700px at 50% -10%,#0d2233 0%,var(--bg) 60%) fixed;color:var(--txt);
+ font:15px/1.4 "Chakra Petch",ui-monospace,monospace}}
+body:before{{content:"";position:fixed;inset:0;background:repeating-linear-gradient(0deg,rgba(124,196,255,.04) 0 1px,transparent 1px 4px);pointer-events:none}}
+.wrap{{max-width:980px;margin:0 auto;padding:max(20px,env(safe-area-inset-top)) 18px max(28px,env(safe-area-inset-bottom))}}
+.top{{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;letter-spacing:.18em;font-size:12px;color:#6fb9e8;text-transform:uppercase}}
+.status{{margin:18px 0 0;padding:10px 14px;border:1px solid var(--line);letter-spacing:.2em;font-size:13px;color:{sys_color};
+ clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,12px 100%,0 calc(100% - 12px));background:rgba(10,30,45,.45)}}
+.status:before{{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:{sys_color};box-shadow:0 0 10px {sys_color};margin-right:10px;animation:pulse 2s ease-in-out infinite}}
+@keyframes pulse{{50%{{opacity:.35}}}}
+.core{{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:18px;margin:22px 0}}
+.ring{{display:flex;flex-direction:column;align-items:center;gap:6px}}
+.ring svg{{width:150px;height:150px}}
+.ring b{{font-size:13px;letter-spacing:.2em;text-transform:uppercase;color:#8fd3ff}}
+.ring span{{font-size:12px;color:#5d8fb3}}
+.spin{{transform-origin:75px 75px;animation:spin 14s linear infinite}}
+@keyframes spin{{to{{transform:rotate(360deg)}}}}
+.list{{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:8px}}
+.it{{border:1px solid var(--line);padding:10px 12px;display:flex;justify-content:space-between;gap:12px;background:rgba(10,30,45,.45);
+ clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px))}}
+.it.bad{{border-color:#ff5d6c;background:rgba(60,10,18,.5)}} .it.warn{{border-color:rgba(255,181,71,.6)}}
+.it em{{font-style:normal;font-size:12px;color:var(--dim);text-align:right;max-width:60%}}
+.tag{{font-size:11px;letter-spacing:.15em}}
+footer{{margin-top:18px;font-size:11px;letter-spacing:.12em;color:#4f7896;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}}
+code{{font:11px ui-monospace,monospace;color:#6fb9e8}}
+@media (prefers-reduced-motion:reduce){{*{{animation:none!important}}}}
+</style></head><body><div class="wrap">
+<div class="top"><span>VEX-MICRO // SYSTEM</span><span>{when}</span></div>
+<div class="status">{HUD_HEAD[st["overall"]]}</div>
+<div class="core">{rings}</div>
+<div class="list">{items}</div>
+<footer><span>{alerts}</span><span>AUTO-REFRESH 30 S · WATCHDOG ~30 MIN</span></footer>
+</div></body></html>"""
 
 
 def render_text(st):
