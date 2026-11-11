@@ -6,6 +6,10 @@ name: Micro setup
 
 on:
   workflow_dispatch:
+    inputs:
+      ip:
+        description: "Server IP (leave blank to look it up)"
+        required: false
 
 concurrency:
   group: micro-setup
@@ -51,7 +55,10 @@ jobs:
 
       - name: Find the server's IP
         id: ip
+        env:
+          GIVEN_IP: ${{ inputs.ip }}
         run: |
+          if [ -n "$GIVEN_IP" ]; then echo "::add-mask::$GIVEN_IP"; echo "ip=$GIVEN_IP" >> "$GITHUB_OUTPUT"; echo "Using the IP given."; exit 0; fi
           TENANCY=$(grep -m1 '^tenancy=' ~/.oci/config | cut -d= -f2-); echo "::add-mask::$TENANCY"
           ID=$(oci compute instance list -c "$TENANCY" --display-name "$INSTANCE_NAME" --lifecycle-state RUNNING \
                  --query 'data[0].id' --raw-output); echo "::add-mask::$ID"
