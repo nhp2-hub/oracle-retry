@@ -62,10 +62,13 @@ jobs:
           echo "Found $INSTANCE_NAME."
 
       - name: Run setup on the server
+        shell: bash {0}
         env:
           IP: ${{ steps.ip.outputs.ip }}
         run: |
           SSH="ssh -i $HOME/.ssh/micro -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 -o ServerAliveInterval=30 ubuntu@$IP"
           for i in 1 2 3; do $SSH true && break; echo "SSH not ready, retrying in 20s"; sleep 20; done
-          $SSH 'bash -s' < server/setup-micro.sh 2>&1 | grep -E '^==|Mem:|Swap:|/dev/|load average|^E:|rror' || true
+          $SSH 'bash -s' < server/setup-micro.sh > /tmp/out.txt 2>&1; RC=$?
+          grep -E '^==|Mem:|Swap:|/dev/|load average|^E:|rror' /tmp/out.txt || true
+          if [ "$RC" -ne 0 ]; then echo "::error::Setup script failed (exit $RC)"; tail -5 /tmp/out.txt; exit 1; fi
           echo "Setup finished."
