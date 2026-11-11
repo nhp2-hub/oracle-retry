@@ -21,7 +21,7 @@ permissions:
   issues: write    # "server is up" notification
 
 concurrency:
-  group: oracle-a1-retry
+  group: oracle-a1-retry-v2  # renamed: a ghost run (Nov 11) jammed the old queue
   cancel-in-progress: false
 
 env:

@@ -17,7 +17,7 @@ on:
         default: base
 
 concurrency:
-  group: micro-setup
+  group: micro-setup-v2  # renamed: a ghost run (Nov 11) jammed the old queue
   cancel-in-progress: false
 
 env:
