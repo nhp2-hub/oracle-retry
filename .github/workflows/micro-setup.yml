@@ -13,7 +13,7 @@ on:
       step:
         description: "Which setup step to run"
         type: choice
-        options: [base, tailscale]
+        options: [base, tailscale, lockdown]
         default: base
 
 concurrency:
@@ -87,10 +87,27 @@ jobs:
           echo "ip=$IP" >> "$GITHUB_OUTPUT"
           echo "Found $INSTANCE_NAME."
 
+      - name: Join Tailscale (if TS_GH_AUTHKEY is set)
+        id: ts
+        env:
+          TS_GH_AUTHKEY: ${{ secrets.TS_GH_AUTHKEY }}
+        run: |
+          if [ -z "$TS_GH_AUTHKEY" ]; then
+            [ "${{ inputs.step }}" = lockdown ] && { echo "::error::Add the TS_GH_AUTHKEY secret first - lockdown needs GitHub on Tailscale"; exit 1; }
+            echo "No TS_GH_AUTHKEY - using the public IP."; exit 0
+          fi
+          curl -fsSL https://tailscale.com/install.sh | sh >/dev/null
+          sudo tailscale up --authkey="$TS_GH_AUTHKEY" --hostname="gh-runner-$GITHUB_RUN_ID" --accept-routes=false
+          for i in $(seq 1 10); do TSIP=$(tailscale ip -4 "$INSTANCE_NAME" 2>/dev/null) && [ -n "$TSIP" ] && break; sleep 3; done
+          [ -n "${TSIP:-}" ] || { echo "::error::Joined Tailscale but can't see $INSTANCE_NAME"; exit 1; }
+          echo "::add-mask::$TSIP"
+          echo "ip=$TSIP" >> "$GITHUB_OUTPUT"
+          echo "Connecting over Tailscale."
+
       - name: Run setup on the server
         shell: bash {0}
         env:
-          IP: ${{ steps.ip.outputs.ip }}
+          IP: ${{ steps.ts.outputs.ip || steps.ip.outputs.ip }}
           STEP: ${{ inputs.step }}
           TS_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
         run: |
@@ -104,6 +121,10 @@ jobs:
           else
             $SSH 'bash -s' < "server/$STEP.sh" > /tmp/out.txt 2>&1; RC=$?
           fi
-          grep -E '^==|Mem:|Swap:|/dev/sd|load average|^E:|tailnet name|[Ee]rror:' /tmp/out.txt || true
+          grep -E '^==|Mem:|Swap:|/dev/sd|load average|^E:|tailnet name|[Ee]rror:|^ERROR|^WARNING|^rule:|^saved:' /tmp/out.txt || true
           if [ "$RC" -ne 0 ]; then echo "::error::Setup script failed (exit $RC)"; tail -5 /tmp/out.txt; exit 1; fi
           echo "Setup finished."
+
+      - name: Leave Tailscale
+        if: always() && steps.ts.outputs.ip != ''
+        run: sudo tailscale logout || true
