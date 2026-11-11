@@ -1,0 +1,151 @@
+name: Watchdog
+
+# Checks vex-micro from OUTSIDE every 30 min, so you still get a phone alert if the
+# whole server dies (the server's own 5-min self-check can't report its own death).
+#   1. joins Tailscale and SSHes in   -> "server unreachable" if that fails
+#   2. checks the 5-min self-check timer is still running
+#   3. leaves Tailscale and loads the status page through Funnel like the internet would
+# Alerts only when things CHANGE (broken -> ping, fixed -> ping), using the last run's result.
+#
+# Secrets: MICRO_SSH_KEY, TS_GH_AUTHKEY (already there) + NTFY_TOPIC (the alert topic
+# shown at the bottom of the status page). This repo is public: nothing secret is printed.
+
+on:
+  schedule:
+    - cron: "7,37 * * * *"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+
+concurrency:
+  group: watchdog
+  cancel-in-progress: false
+
+env:
+  INSTANCE_NAME: vex-micro
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Write SSH key
+        env:
+          MICRO_SSH_KEY: ${{ secrets.MICRO_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$MICRO_SSH_KEY" | tr -d '\r' | sed '/^[[:space:]]*$/d; s/^[[:space:]]*//; s/[[:space:]]*$//' > ~/.ssh/micro
+          chmod 600 ~/.ssh/micro
+          if ! grep -q 'BEGIN' ~/.ssh/micro; then
+            cp ~/.ssh/micro ~/.ssh/body
+            for T in "PRIVATE KEY" "RSA PRIVATE KEY" "OPENSSH PRIVATE KEY"; do
+              { echo "-----BEGIN $T-----"; cat ~/.ssh/body; echo "-----END $T-----"; } > ~/.ssh/micro
+              chmod 600 ~/.ssh/micro
+              ssh-keygen -y -f ~/.ssh/micro >/dev/null 2>&1 && break
+            done
+            rm -f ~/.ssh/body
+          fi
+          ssh-keygen -y -f ~/.ssh/micro >/dev/null || { echo "::error::MICRO_SSH_KEY isn't a valid private key"; exit 1; }
+
+      - name: Join Tailscale
+        id: ts
+        env:
+          TS_GH_AUTHKEY: ${{ secrets.TS_GH_AUTHKEY }}
+        run: |
+          curl -fsSL https://tailscale.com/install.sh | sh >/dev/null 2>&1
+          if sudo tailscale up --authkey="$TS_GH_AUTHKEY" --hostname="gh-watchdog-$GITHUB_RUN_ID" --accept-routes=false; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Couldn't join Tailscale - skipping this check (not the server's fault)"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check the server
+        id: check
+        if: steps.ts.outputs.ok == 'true'
+        shell: bash {0}
+        run: |
+          PROBLEMS=""
+          SSH="ssh -i $HOME/.ssh/micro -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 -o BatchMode=yes"
+          for i in 1 2 3; do TSIP=$(tailscale ip -4 "$INSTANCE_NAME" 2>/dev/null) && [ -n "$TSIP" ] && break; sleep 5; done
+          [ -n "${TSIP:-}" ] && echo "::add-mask::$TSIP"
+          OK=false
+          for i in 1 2 3; do
+            [ -n "${TSIP:-}" ] && $SSH "ubuntu@$TSIP" true </dev/null 2>/dev/null && { OK=true; break; }
+            sleep 20
+          done
+          if [ "$OK" != true ]; then
+            PROBLEMS="Server unreachable (Tailscale/SSH): it may be down or frozen."
+          else
+            echo "Server answered over SSH."
+            # the server's own 5-min checker must still be running
+            T=$($SSH "ubuntu@$TSIP" 'systemctl is-active vex1-status-alert.timer' </dev/null 2>/dev/null || true)
+            [ "$T" = active ] || PROBLEMS="${PROBLEMS}The 5-min self-check timer is ${T:-missing}. "
+            # overall result + names of checks that aren't green (details stay private: public repo)
+            $SSH "ubuntu@$TSIP" 'VAULT=$HOME/vex1 python3 $HOME/vex1-mcp/vex1_status.py --json' </dev/null 2>/dev/null \
+              | python3 -c 'import json,sys;d=json.load(sys.stdin);print("Server self-check:",d["overall"],"|",", ".join(c["name"]+"="+c["level"] for c in d["checks"] if c["level"] in ("warn","bad")) or "all green")' || true
+            # grab the public status URL (masked), then test it from the internet side
+            HOST=$($SSH "ubuntu@$TSIP" "tailscale status --json | python3 -c 'import json,sys;print(json.load(sys.stdin)[\"Self\"][\"DNSName\"].rstrip(\".\"))'" </dev/null 2>/dev/null || true)
+            TOKEN=$($SSH "ubuntu@$TSIP" 'cut -d= -f2- $HOME/vex1-mcp/env' </dev/null 2>/dev/null || true)
+            [ -n "$HOST" ] && echo "::add-mask::$HOST"
+            [ -n "$TOKEN" ] && echo "::add-mask::$TOKEN"
+            if [ -n "$HOST" ] && [ -n "$TOKEN" ]; then
+              echo "url=https://$HOST/$TOKEN/status?format=json" >> "$GITHUB_OUTPUT"
+            else
+              PROBLEMS="${PROBLEMS}Couldn't read the connector address from the server. "
+            fi
+          fi
+          echo "problems=$PROBLEMS" >> "$GITHUB_OUTPUT"
+
+      - name: Leave Tailscale
+        if: always() && steps.ts.outputs.ok == 'true'
+        run: sudo tailscale logout || true
+
+      - name: Check the connector from the internet (through Funnel)
+        id: public
+        if: steps.check.outputs.url != ''
+        env:
+          URL: ${{ steps.check.outputs.url }}
+        run: |
+          for i in 1 2 3; do
+            CODE=$(curl -s -o /tmp/st.json -w '%{http_code}' --max-time 30 "$URL" || true)
+            [ "$CODE" = 200 ] && break
+            sleep 15
+          done
+          if [ "$CODE" = 200 ]; then
+            echo "Status page reachable from the internet. Overall: $(python3 -c 'import json;print(json.load(open("/tmp/st.json"))["overall"])')"
+            echo "problems=" >> "$GITHUB_OUTPUT"
+          else
+            echo "problems=Connector/status page not reachable from the internet (HTTP $CODE): Funnel may be off. " >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Alert on changes
+        if: steps.ts.outputs.ok == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          P1: ${{ steps.check.outputs.problems }}
+          P2: ${{ steps.public.outputs.problems }}
+        run: |
+          PROBLEMS="$P1$P2"
+          PREV=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/watchdog.yml/runs?status=completed&per_page=5" \
+                   --jq "[.workflow_runs[] | select(.id != $GITHUB_RUN_ID) | select(.conclusion==\"success\" or .conclusion==\"failure\")][0].conclusion // \"success\"")
+          send() {  # title, message, priority, tag
+            [ -n "$NTFY_TOPIC" ] || { echo "::warning::Add the NTFY_TOPIC secret to get phone alerts"; return 0; }
+            python3 - "$@" <<'PY'
+          import json, os, sys, urllib.request
+          t, m, p, tag = sys.argv[1:5]
+          body = json.dumps({"topic": os.environ["NTFY_TOPIC"], "title": t, "message": m,
+                             "priority": int(p), "tags": [tag]}).encode()
+          urllib.request.urlopen(urllib.request.Request("https://ntfy.sh/", data=body,
+                                 headers={"Content-Type": "application/json"}), timeout=20).read()
+          PY
+          }
+          if [ -n "$PROBLEMS" ]; then
+            echo "::error::$PROBLEMS"
+            if [ "$PREV" = success ]; then send "Vex1 watchdog: something's down" "$PROBLEMS" 4 rotating_light; echo "Alert sent."; fi
+            exit 1
+          fi
+          echo "All good from the outside."
+          if [ "$PREV" = failure ]; then send "Vex1 watchdog: back to normal" "The server and connector are reachable again." 3 white_check_mark; echo "Recovery sent."; fi
