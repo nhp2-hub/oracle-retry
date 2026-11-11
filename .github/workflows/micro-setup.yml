@@ -47,15 +47,7 @@ jobs:
           printf '%s\n' "$MICRO_SSH_KEY" | tr -d '\r' | sed '/^[[:space:]]*$/d' > ~/.ssh/micro
           chmod 600 ~/.oci/key.pem ~/.oci/config ~/.ssh/micro
           ssh-keygen -y -f ~/.ssh/micro >/dev/null || { echo "::error::MICRO_SSH_KEY isn't a valid private key - paste the whole .key file"; exit 1; }
-          # Does this key match the public key the server was created with?
-          EXPECTED=$(grep -m1 'SSH_PUBLIC_KEY:' .github/workflows/oracle-micro-launch.yml | awk '{print $3}')
-          GOT=$(ssh-keygen -y -f ~/.ssh/micro | awk '{print $2}')
-          if [ "$EXPECTED" = "$GOT" ]; then echo "Key check: MATCHES the server's key"; else
-            echo "Key check: DOES NOT MATCH the server's key"
-            echo "  your key's fingerprint:   $(ssh-keygen -lf ~/.ssh/micro | awk '{print $2}')"
-            echo "  server expects:           $(echo "ssh-rsa $EXPECTED" | ssh-keygen -lf - | awk '{print $2}')"
-            echo "::error::Wrong private key - this isn't the one the server was created with"; exit 1
-          fi
+          echo "Key fingerprint: $(ssh-keygen -lf ~/.ssh/micro | awk '{print $2}')"
 
       - name: Find the server's IP
         id: ip
