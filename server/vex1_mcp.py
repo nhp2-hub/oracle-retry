@@ -6,7 +6,8 @@ and it can't see outside the vault folder (or into .git).
 Served at  http://127.0.0.1:8765/<MCP_TOKEN>/mcp  and exposed to the internet
 by Tailscale Funnel. The long random token in the path is the password.
 
-Also serves a status page at  /<MCP_TOKEN>/status  (health checks live in vex1_status.py).
+Also serves a status page at  /<MCP_TOKEN>/status  (health checks live in vex1_status.py)
+and a control panel at  /<MCP_TOKEN>/panel  (vex1_panel.py + vex1_panel.html).
 
 Needs mcp<2 (this uses the v1 FastMCP API). Install with the "mcp" step in micro-setup.yml.
 """
@@ -18,10 +19,12 @@ import sys
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.requests import Request
-from starlette.responses import HTMLResponse, JSONResponse
+from starlette.responses import HTMLResponse, JSONResponse, StreamingResponse
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import vex1_status  # noqa: E402  (health checks, same folder)
+import vex1_stream  # noqa: E402  (fast live numbers for the HUD)
+import vex1_panel  # noqa: E402  (the Beszel-look panel at /<token>/panel)
 
 VAULT = pathlib.Path(os.environ.get("VAULT", str(pathlib.Path.home() / "vex1"))).resolve()
 TOKEN = os.environ["MCP_TOKEN"]
@@ -167,10 +170,14 @@ def list_folder(path: str = "", depth: int = 1) -> str:
 
 
 @mcp.tool()
-def status() -> str:
+async def status() -> str:
     """Health check of Neel's vex-micro server: memory, disk, vault sync, connector,
     Tailscale/Funnel, last Canvas sync, the A1 retry loop and the last PC push."""
-    return vex1_status.render_text(vex1_status.collect())
+    import anyio
+    # run in a thread: the connector check calls this same server, which would
+    # otherwise wait on itself and time out
+    st = await anyio.to_thread.run_sync(vex1_status.collect)
+    return vex1_status.render_text(st)
 
 
 # Status page for Neel's iPad: https://<funnel host>/<MCP_TOKEN>/status  (add ?format=json for JSON)
@@ -181,6 +188,17 @@ async def status_page(request: Request):
     if request.query_params.get("format") == "json":
         return JSONResponse(st)
     return HTMLResponse(vex1_status.render_html(st), headers={"Cache-Control": "no-store"})
+
+
+# Live CPU/RAM/network numbers for the status page (Server-Sent Events, ~100x/s)
+@mcp.custom_route(f"/{TOKEN}/stream", methods=["GET"])
+async def status_stream(request: Request):
+    return StreamingResponse(vex1_stream.stream(request), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+# Control panel: https://<funnel host>/<MCP_TOKEN>/panel  (page + its small API live in vex1_panel.py)
+vex1_panel.register(mcp, TOKEN, VAULT, _safe)
 
 
 if __name__ == "__main__":
