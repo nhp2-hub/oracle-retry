@@ -6,7 +6,8 @@ and it can't see outside the vault folder (or into .git).
 Served at  http://127.0.0.1:8765/<MCP_TOKEN>/mcp  and exposed to the internet
 by Tailscale Funnel. The long random token in the path is the password.
 
-Also serves a status page at  /<MCP_TOKEN>/status  (health checks live in vex1_status.py).
+Also serves a status page at  /<MCP_TOKEN>/status  (health checks live in vex1_status.py)
+and a control panel at  /<MCP_TOKEN>/panel  (vex1_panel.py + vex1_panel.html).
 
 Needs mcp<2 (this uses the v1 FastMCP API). Install with the "mcp" step in micro-setup.yml.
 """
@@ -23,6 +24,7 @@ from starlette.responses import HTMLResponse, JSONResponse, StreamingResponse
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import vex1_status  # noqa: E402  (health checks, same folder)
 import vex1_stream  # noqa: E402  (fast live numbers for the HUD)
+import vex1_panel  # noqa: E402  (the Beszel-look panel at /<token>/panel)
 
 VAULT = pathlib.Path(os.environ.get("VAULT", str(pathlib.Path.home() / "vex1"))).resolve()
 TOKEN = os.environ["MCP_TOKEN"]
@@ -193,6 +195,10 @@ async def status_page(request: Request):
 async def status_stream(request: Request):
     return StreamingResponse(vex1_stream.stream(request), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+# Control panel: https://<funnel host>/<MCP_TOKEN>/panel  (page + its small API live in vex1_panel.py)
+vex1_panel.register(mcp, TOKEN, VAULT, _safe)
 
 
 if __name__ == "__main__":

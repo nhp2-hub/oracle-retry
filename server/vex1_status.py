@@ -326,7 +326,7 @@ code{font:11px ui-monospace,monospace;color:#6fb9e8}
   <div class="gp"><div class="h"><span>NETWORK · 15 s</span><b id="netv">0 KB/s</b></div><canvas id="gnet"></canvas></div>
 </div>
 <div class="list" id="list"></div>
-<footer><span id="alerts"></span><span>STREAM ~100/S · CHECKS EVERY 15 S · WATCHDOG ~30 MIN</span></footer>
+<footer><span id="alerts"></span><span><a href="panel" style="color:inherit">PANEL ↗</a> · STREAM ~100/S · CHECKS EVERY 15 S · WATCHDOG ~30 MIN</span></footer>
 </div>
 <script>
 const BOOT = __BOOT__;

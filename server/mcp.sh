@@ -17,6 +17,8 @@ main() {
   curl -fsSL https://raw.githubusercontent.com/nhp2-hub/oracle-retry/main/server/vex1_mcp.py -o "$DIR/vex1_mcp.py" </dev/null
   curl -fsSL https://raw.githubusercontent.com/nhp2-hub/oracle-retry/main/server/vex1_status.py -o "$DIR/vex1_status.py" </dev/null
   curl -fsSL https://raw.githubusercontent.com/nhp2-hub/oracle-retry/main/server/vex1_stream.py -o "$DIR/vex1_stream.py" </dev/null
+  curl -fsSL https://raw.githubusercontent.com/nhp2-hub/oracle-retry/main/server/vex1_panel.py -o "$DIR/vex1_panel.py" </dev/null
+  curl -fsSL https://raw.githubusercontent.com/nhp2-hub/oracle-retry/main/server/vex1_panel.html -o "$DIR/vex1_panel.html" </dev/null
 
   echo "== 2/4 installing python stuff (slow part)"
   [ -d "$DIR/venv" ] || python3 -m venv "$DIR/venv"

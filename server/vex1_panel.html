@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#09090b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Vex1">
+<link rel="apple-touch-icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAAC0CAIAAACyr5FlAAAEnUlEQVR42u3dSXIcRRiG4ZRCG4UDWGjoFieRrFnMK6YLMB8AD2GDZMsTNhh0AKbgAtjeMBmQ1AiuggZWoAMkG2MRIYXc1W5VZVY9b1RooYiuzsx+6/8ys0qtgeHhUwE4ikFDAHKAHCAHyAFygBwgB8gBcoAcADlADpAD5AA5QA6QA+QAOUAOgBwgB8gBcoAcIAfIAXKAHCAHQA6QA+QAOVAGQxm1deKX12sw4tvPfptLUwfS/8K49s+v1fK63HnuDjk4kaslKcrRHC0SVyQ5Odr3m2jGAz+ev2O1wow8up9K5Wjff9XS8X8l5C45/jPjJ2Yc8uOFu2KFGekOy6Ah4EdIc4c0Rg4Em2BH0PrxFR/AI9l98V7jYoUZ6Q9UNZWj9QMzCtaPl+65ZY/Q6B1SZSOXQatitWKFEjzsww6xUqw8fv+yQc9l6IYUDSQTK+wQK0cy/p1MyWkAh9QNpCEHN8QKyAGxkmqs/Pn+r0Vf8vTaM/m+r8qBpsoRQ+zjMbG21MNF/5hv2kPZmFhb6mOvxUq92hBVDoiVpJj4bEkL6yJHPIGjINtn1nt+r+0z69V32fZ5jZoRVY7q6vani9omVvqXLGc3esmUsxs5xqjVCuqwCXYiR/v2YgktKUr79mLmhaO5z3NEU9FmzDmKfwo75zYLnX/n3GamEyxzjtD+ZEF7yAGxUkKynO82WXbOb+YboCpHCCG0P17QEquV9NsTycGNmj9kP1ibKUcMoXVrvti040LnkefcudApdM7WrflYkymH1QrESnlNipayiQZLbN2cK9Sg3YudY862e7FgptycO/k+ihWIlbolS7RDmjatj+Ya9b7kOEF2P/it0O+DeyvAULlfg19SJo/fmN37cKvMho3fmI21+5Z/lSOEEA6bVMgtsQJy5L0HdnCMX599rLYVypTrs+V1TeWA7fOErrK95a2HL9xb3kq4X2KlL8lybabH5hXKlGszNXVDrIAcXSXLyu8Pf6L0J8Fi2cfY1ZkT/W+VY1dnSu5R8IBxyOYWbVQ5IFZqtpKNIcQwdmW6+wb+demPAplyZbqCHqkcECsgR6WxEmIYW53ue1fGVqer6Y7VSg5ElQNipc6pEmIIo6un+9iR0dXTVXXEnyaIFLECcqQRLHH08lR/MuXyVKUdESsyRayAHKkwemmq8jMEf9RU24IcVQ4g6/8O2dsxsjLZc/tHViYrb79YkSliBeRIjZHlydJeZbXSjLIcG3cVDQwPnyrz/Z76ZimgV/5+Yz2IFTTwi/GbWJxNSLsujG+uG/Rchm4omNghHTnoYbVyHE9+vWjoC/HPWxvBJhiavkNayXWgbOQRKw/C5Svh0oUZb2808d5Khd1mRrKrFSsXq5Uuw+XLBR/D0WXjnc2myxFCeIIfh9iv2oxUlrIpDAQzEq0cByXki6aXkP13N805jvFjvsFmdIJNsIwGqMkdT65yHJSQz5tSQvbf61jKsiQPJ3KSo2aWpO9ElnLALXuQA+QAOUAOkAMgB8gBcoAcIAfIAXKAHCAHyAFyAOQAOUAOkAPkADlADpAD5AA5AHKAHCAHyAFygBwgB8iBOvIvE7DwV4uFSO8AAAAASUVORK5CYII=">
+<link rel="icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAAC0CAIAAACyr5FlAAAEnUlEQVR42u3dSXIcRRiG4ZRCG4UDWGjoFieRrFnMK6YLMB8AD2GDZMsTNhh0AKbgAtjeMBmQ1AiuggZWoAMkG2MRIYXc1W5VZVY9b1RooYiuzsx+6/8ys0qtgeHhUwE4ikFDAHKAHCAHyAFygBwgB8gBcoAcADlADpAD5AA5QA6QA+QAOUAOgBwgB8gBcoAcIAfIAXKAHCAHQA6QA+QAOVAGQxm1deKX12sw4tvPfptLUwfS/8K49s+v1fK63HnuDjk4kaslKcrRHC0SVyQ5Odr3m2jGAz+ev2O1wow8up9K5Wjff9XS8X8l5C45/jPjJ2Yc8uOFu2KFGekOy6Ah4EdIc4c0Rg4Em2BH0PrxFR/AI9l98V7jYoUZ6Q9UNZWj9QMzCtaPl+65ZY/Q6B1SZSOXQatitWKFEjzsww6xUqw8fv+yQc9l6IYUDSQTK+wQK0cy/p1MyWkAh9QNpCEHN8QKyAGxkmqs/Pn+r0Vf8vTaM/m+r8qBpsoRQ+zjMbG21MNF/5hv2kPZmFhb6mOvxUq92hBVDoiVpJj4bEkL6yJHPIGjINtn1nt+r+0z69V32fZ5jZoRVY7q6vani9omVvqXLGc3esmUsxs5xqjVCuqwCXYiR/v2YgktKUr79mLmhaO5z3NEU9FmzDmKfwo75zYLnX/n3GamEyxzjtD+ZEF7yAGxUkKynO82WXbOb+YboCpHCCG0P17QEquV9NsTycGNmj9kP1ibKUcMoXVrvti040LnkefcudApdM7WrflYkymH1QrESnlNipayiQZLbN2cK9Sg3YudY862e7FgptycO/k+ihWIlbolS7RDmjatj+Ya9b7kOEF2P/it0O+DeyvAULlfg19SJo/fmN37cKvMho3fmI21+5Z/lSOEEA6bVMgtsQJy5L0HdnCMX599rLYVypTrs+V1TeWA7fOErrK95a2HL9xb3kq4X2KlL8lybabH5hXKlGszNXVDrIAcXSXLyu8Pf6L0J8Fi2cfY1ZkT/W+VY1dnSu5R8IBxyOYWbVQ5IFZqtpKNIcQwdmW6+wb+demPAplyZbqCHqkcECsgR6WxEmIYW53ue1fGVqer6Y7VSg5ElQNipc6pEmIIo6un+9iR0dXTVXXEnyaIFLECcqQRLHH08lR/MuXyVKUdESsyRayAHKkwemmq8jMEf9RU24IcVQ4g6/8O2dsxsjLZc/tHViYrb79YkSliBeRIjZHlydJeZbXSjLIcG3cVDQwPnyrz/Z76ZimgV/5+Yz2IFTTwi/GbWJxNSLsujG+uG/Rchm4omNghHTnoYbVyHE9+vWjoC/HPWxvBJhiavkNayXWgbOQRKw/C5Svh0oUZb2808d5Khd1mRrKrFSsXq5Uuw+XLBR/D0WXjnc2myxFCeIIfh9iv2oxUlrIpDAQzEq0cByXki6aXkP13N805jvFjvsFmdIJNsIwGqMkdT65yHJSQz5tSQvbf61jKsiQPJ3KSo2aWpO9ElnLALXuQA+QAOUAOkAMgB8gBcoAcIAfIAXKAHCAHyAFyAOQAOUAOkAPkADlADpAD5AA5AHKAHCAHyAFygBwgB8iBOvIvE7DwV4uFSO8AAAAASUVORK5CYII=">
+<title>Vex1 Panel</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#09090b; --card:#111113; --card2:#18181b; --bd:#27272a; --bd2:#3f3f46;
+  --fg:#fafafa; --mut:#a1a1aa; --dim:#71717a;
+  --green:#22c55e; --yellow:#eab308; --red:#ef4444; --blue:#3b82f6; --violet:#a78bfa; --cyan:#22d3ee;
+  --r:10px;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;background:var(--bg);color:var(--fg);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;font-size:14px}
+a{color:inherit}
+.mono{font-family:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace}
+.wrap{max-width:1180px;margin:0 auto;padding:18px 18px 60px;padding-top:max(18px,env(safe-area-inset-top))}
+.top{display:flex;align-items:center;gap:14px;padding:10px 14px;border:1px solid var(--bd);border-radius:var(--r);background:var(--card);position:sticky;top:10px;z-index:5}
+.logo{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:-.02em}
+.logo .sq{width:22px;height:22px;border-radius:6px;background:linear-gradient(135deg,#22c55e,#16a34a);display:grid;place-items:center;font-size:12px;color:#052e16}
+.tabs{display:flex;gap:2px;margin-left:10px;flex-wrap:wrap}
+.tab{padding:7px 12px;border-radius:7px;color:var(--mut);cursor:pointer;font-weight:500;border:0;background:none;font:inherit}
+.tab:hover{color:var(--fg);background:var(--card2)}
+.tab.on{color:var(--fg);background:var(--card2);box-shadow:inset 0 0 0 1px var(--bd)}
+.spacer{flex:1}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;border:1px solid var(--bd);font-size:12px;color:var(--mut);background:var(--card2);text-decoration:none;white-space:nowrap}
+a.pill:hover{color:var(--fg);border-color:var(--bd2)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px rgba(34,197,94,.15);display:inline-block;flex:none}
+.dot.y{background:var(--yellow);box-shadow:0 0 0 3px rgba(234,179,8,.15)}
+.dot.r{background:var(--red);box-shadow:0 0 0 3px rgba(239,68,68,.15)}
+.dot.g{background:var(--dim);box-shadow:none}
+.dot.b{background:var(--blue);box-shadow:0 0 0 3px rgba(59,130,246,.15)}
+.card{border:1px solid var(--bd);border-radius:var(--r);background:var(--card)}
+.card h3{margin:0;font-size:14px;font-weight:600}
+.card .sub{color:var(--dim);font-size:12px;margin-top:2px}
+.ch{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:14px 16px 6px}
+.cb{padding:6px 16px 16px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:820px){.grid2{grid-template-columns:1fr}.tabs{margin-left:0}.top{flex-wrap:wrap}}
+.sec{margin-top:16px}
+h2{font-size:20px;letter-spacing:-.02em;margin:22px 0 4px}
+.lead{color:var(--mut);margin:0 0 4px}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;color:var(--dim);font-weight:500;font-size:12px;padding:10px 12px;border-bottom:1px solid var(--bd);white-space:nowrap}
+td{padding:11px 12px;border-bottom:1px solid var(--bd);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+tbody tr:hover td{background:#141416}
+.sys{display:flex;align-items:center;gap:9px;font-weight:600;white-space:nowrap}
+.sysub{font-size:12px;margin-top:3px;margin-left:17px;color:var(--dim)}
+.meter{display:flex;align-items:center;gap:8px;min-width:120px}
+.meter .bar{flex:1;height:7px;border-radius:99px;background:#27272a;overflow:hidden}
+.meter .bar i{display:block;height:100%;width:0;border-radius:99px;background:var(--green);transition:width .4s}
+.meter span{width:40px;text-align:right;font-size:12px;color:var(--mut)}
+.muted{color:var(--mut)} .dim{color:var(--dim)}
+.badge{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11.5px;font-weight:500;border:1px solid var(--bd);background:var(--card2);color:var(--mut);white-space:nowrap}
+.b-g{color:#86efac;border-color:#14532d;background:#052e16}
+.b-y{color:#fde68a;border-color:#713f12;background:#1c1406}
+.b-r{color:#fca5a5;border-color:#7f1d1d;background:#1f0909}
+.b-b{color:#93c5fd;border-color:#1e3a8a;background:#0b1530}
+.b-v{color:#c4b5fd;border-color:#4c1d95;background:#150b2e}
+canvas{width:100%;height:150px;display:block}
+.big{font-size:22px;font-weight:700;letter-spacing:-.02em;white-space:nowrap}
+.legend{display:flex;gap:12px;font-size:12px;color:var(--mut)}
+.legend i{display:inline-block;width:10px;height:3px;border-radius:2px;margin-right:5px;vertical-align:middle}
+.checks{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+@media(max-width:820px){.checks{grid-template-columns:repeat(2,1fr)}}
+.chk{border:1px solid var(--bd);border-radius:8px;padding:9px 10px;background:var(--card2);display:flex;gap:8px;align-items:flex-start;min-width:0}
+.chk b{display:block;font-size:12.5px;font-weight:600}
+.chk small{color:var(--dim);font-size:11.5px;display:block;overflow-wrap:anywhere}
+.chk .dot{margin-top:4px}
+.vault{display:grid;grid-template-columns:260px 1fr;gap:14px;align-items:start}
+@media(max-width:820px){.vault{grid-template-columns:1fr}}
+.tree{padding:8px;max-height:560px;overflow:auto}
+.node{padding:6px 8px;border-radius:6px;cursor:pointer;color:var(--mut);display:flex;gap:7px;align-items:center;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.node span{overflow:hidden;text-overflow:ellipsis}
+.node:hover{background:var(--card2);color:var(--fg)}
+.node.on{background:var(--card2);color:var(--fg);box-shadow:inset 0 0 0 1px var(--bd)}
+.input{width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--bd);background:var(--card2);color:var(--fg);font:inherit;outline:none}
+.input:focus{border-color:var(--bd2)}
+.crumbs{padding:0 14px 8px;font-size:12.5px;color:var(--dim);display:flex;flex-wrap:wrap;gap:4px}
+.crumbs a{cursor:pointer;color:var(--mut);text-decoration:none}
+.crumbs a:hover{color:var(--fg)}
+.filewrap{max-height:420px;overflow:auto}
+.files td{cursor:pointer}
+.files td:first-child{overflow-wrap:anywhere}
+.files .hit{font-size:12px;color:var(--dim);margin-top:2px;overflow-wrap:anywhere}
+.preview{padding:16px;min-height:160px;border-top:1px solid var(--bd)}
+.preview h4{margin:0 0 6px;font-size:16px;overflow-wrap:anywhere}
+.preview pre{white-space:pre-wrap;overflow-wrap:anywhere;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:12.5px;color:#d4d4d8;background:#0c0c0e;border:1px solid var(--bd);border-radius:8px;padding:12px;margin:10px 0 0;max-height:520px;overflow:auto}
+.pdf{display:flex;gap:14px;align-items:flex-start;margin-top:10px;flex-wrap:wrap}
+.page{width:min(460px,100%);min-height:200px;border-radius:6px;background:#f4f4f5;box-shadow:0 6px 20px rgba(0,0,0,.4);display:block}
+.pimg{max-width:100%;border-radius:8px;border:1px solid var(--bd);margin-top:10px}
+.feed .it{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--bd);align-items:flex-start}
+.feed .it:last-child{border-bottom:0}
+.feed .it>div{min-width:0;overflow-wrap:anywhere}
+.feed .when{margin-left:auto;color:var(--dim);font-size:12px;white-space:nowrap}
+.logs{height:300px;overflow:auto;background:#0a0a0c;border:1px solid var(--bd);border-radius:8px;padding:10px 12px;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:12px;line-height:1.65;overflow-wrap:anywhere}
+.logs .t{color:var(--dim)} .logs .u{color:var(--cyan)} .logs .w{color:var(--yellow)} .logs .e{color:var(--red)}
+select{background:var(--card2);color:var(--fg);border:1px solid var(--bd);border-radius:7px;padding:6px 9px;font:inherit;font-size:12.5px}
+.ctl{padding:16px;display:flex;flex-direction:column;gap:10px}
+.ctl .ic{width:34px;height:34px;border-radius:8px;display:grid;place-items:center;background:var(--card2);border:1px solid var(--bd);font-size:17px;flex:none}
+.btn{padding:9px 14px;border-radius:8px;border:1px solid var(--bd2);background:var(--fg);color:#09090b;font:inherit;font-weight:600;cursor:pointer}
+.btn:hover{opacity:.9}
+.btn.ghost{background:var(--card2);color:var(--fg);border-color:var(--bd)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.out{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:12px;color:var(--mut);min-height:18px;white-space:pre-wrap;overflow-wrap:anywhere}
+.out.ok{color:#86efac}.out.bad{color:#fca5a5}
+.note{border:1px dashed var(--bd2);border-radius:var(--r);padding:12px 14px;color:var(--mut);font-size:13px;line-height:1.55}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:20}
+.modal.on{display:flex}
+.box{width:min(420px,92vw);background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:18px}
+.box p{color:var(--mut);margin:8px 0 16px;line-height:1.5}
+.row{display:flex;gap:8px;justify-content:flex-end}
+.toast{position:fixed;right:18px;bottom:18px;background:var(--card2);border:1px solid var(--bd);border-radius:10px;padding:11px 14px;display:none;z-index:30;gap:9px;align-items:center;box-shadow:0 10px 30px rgba(0,0,0,.5);max-width:90vw}
+.toast.on{display:flex}
+.view{display:none}.view.on{display:block}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="top">
+  <div class="logo"><div class="sq">V</div>Vex1</div>
+  <div class="tabs">
+    <button class="tab" data-v="overview">Overview</button>
+    <button class="tab" data-v="vault">Vault</button>
+    <button class="tab" data-v="server">Server</button>
+    <button class="tab" data-v="controls">Controls</button>
+  </div>
+  <div class="spacer"></div>
+  <a class="pill" id="hudlink" href="#">HUD ↗</a>
+  <span class="pill"><span class="dot g" id="livedot"></span><span id="clock" class="mono">--:--:--</span></span>
+</div>
+
+<!-- ================= OVERVIEW ================= -->
+<section class="view" id="v-overview">
+  <h2>Systems</h2>
+  <p class="lead">Live from the same stream as the HUD.</p>
+  <div class="card sec" style="overflow-x:auto">
+    <table>
+      <thead><tr><th>System</th><th>CPU</th><th>Memory</th><th>Disk</th><th>Net</th><th>Uptime</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><div class="sys"><span class="dot g" id="s-dot"></span><span id="s-host">vex-micro</span><span class="badge" id="s-shape" hidden></span></div><div class="sysub" id="s-sub">…</div></td>
+          <td><div class="meter"><div class="bar"><i id="m-cpu"></i></div><span id="t-cpu">–</span></div></td>
+          <td><div class="meter"><div class="bar"><i id="m-mem"></i></div><span id="t-mem">–</span></div></td>
+          <td><div class="meter"><div class="bar"><i id="m-disk"></i></div><span id="t-disk">–</span></div></td>
+          <td class="mono muted" id="t-net" style="white-space:nowrap">–</td>
+          <td class="muted" id="t-up" style="white-space:nowrap">–</td>
+          <td><span class="badge" id="s-badge">connecting…</span></td>
+        </tr>
+        <tr>
+          <td><div class="sys"><span class="dot g" id="a1-dot"></span>instance-vex<span class="badge">A1.Flex</span></div><div class="sysub" id="a1-sub">1 OCPU · 6 GB · …</div></td>
+          <td class="dim">—</td><td class="dim">—</td><td class="dim">—</td><td class="dim">—</td><td class="dim">—</td>
+          <td><span class="badge" id="a1-badge">checking…</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Health checks</h2>
+  <p class="lead">Same checks as the ntfy alerts. Red twice in a row = phone ping. <span class="dim" id="chk-when"></span></p>
+  <div class="checks sec" id="checks"><div class="chk"><span class="dot g"></span><div><b>Loading…</b><small>running the checks</small></div></div></div>
+
+  <h2>Live graphs</h2>
+  <p class="lead">Only streams while this page is open, so the Micro isn't working for nothing.</p>
+  <div class="grid2 sec">
+    <div class="card"><div class="ch"><div><h3>CPU usage</h3><div class="sub" id="cpu-sub">last 60 s</div></div><div class="big" id="b-cpu">–</div></div><div class="cb"><canvas id="c-cpu"></canvas></div></div>
+    <div class="card"><div class="ch"><div><h3>Memory</h3><div class="sub" id="mem-sub">RAM in use</div></div><div class="big" id="b-mem">–</div></div><div class="cb"><canvas id="c-mem"></canvas></div></div>
+    <div class="card"><div class="ch"><div><h3>Network</h3><div class="legend"><span><i style="background:var(--blue)"></i>in</span><span><i style="background:var(--violet)"></i>out</span></div></div><div class="big mono" id="b-net" style="font-size:16px">–</div></div><div class="cb"><canvas id="c-net"></canvas></div></div>
+    <div class="card"><div class="ch"><div><h3>Disk I/O</h3><div class="legend"><span><i style="background:var(--cyan)"></i>read</span><span><i style="background:var(--yellow)"></i>write</span></div></div><div class="big mono" id="b-io" style="font-size:16px">–</div></div><div class="cb"><canvas id="c-io"></canvas></div></div>
+  </div>
+</section>
+
+<!-- ================= VAULT ================= -->
+<section class="view" id="v-vault">
+  <h2>Vault</h2>
+  <p class="lead">Read-only browser for the server's copy of Vex1. Last pull <b id="lastpull">…</b> · commit <span class="mono" id="head">…</span></p>
+  <div class="vault sec">
+    <div class="card tree" id="tree"></div>
+    <div class="card" style="min-width:0">
+      <div style="padding:12px"><input class="input" id="q" placeholder="Search file names and the text inside notes…" autocomplete="off"></div>
+      <div class="crumbs" id="crumbs"></div>
+      <div class="filewrap"><table class="files"><thead><tr><th>Name</th><th>Type</th><th>Modified</th><th>Size</th></tr></thead><tbody id="files"></tbody></table></div>
+      <div class="preview" id="preview"><span class="dim">Click a file to preview it.</span></div>
+    </div>
+  </div>
+  <h2>Recent changes</h2>
+  <p class="lead">From <span class="mono">git log</span>: who pushed what.</p>
+  <div class="card sec"><div class="cb feed" style="padding-top:8px" id="feed"><span class="dim">Loading…</span></div></div>
+</section>
+
+<!-- ================= SERVER ================= -->
+<section class="view" id="v-server">
+  <h2>Services &amp; timers</h2>
+  <p class="lead">Everything Vex1 runs on vex-micro. <span id="cockpit"></span></p>
+  <div class="card sec" style="overflow-x:auto">
+    <table><thead><tr><th>Unit</th><th>What it does</th><th>State</th><th>Last run</th><th>Next run</th></tr></thead>
+    <tbody id="units"><tr><td colspan="5" class="dim">Loading…</td></tr></tbody></table>
+  </div>
+  <div class="grid2 sec">
+    <div class="card" style="min-width:0">
+      <div class="ch"><div><h3>Live logs</h3><div class="sub">journalctl -f (vex1 units only)</div></div>
+        <select id="unitSel"><option value="all">All vex1 units</option><option>vex1-mcp</option><option>vex1-sync</option><option>vex1-status-alert</option><option>vex1-kick</option></select></div>
+      <div class="cb"><div class="logs" id="logs"></div></div>
+    </div>
+    <div class="card" style="min-width:0">
+      <div class="ch"><div><h3>Top processes</h3><div class="sub">by memory</div></div></div>
+      <div class="cb" style="padding:0 0 6px;overflow-x:auto"><table><thead><tr><th>Process</th><th>PID</th><th>CPU</th><th>RAM</th></tr></thead><tbody id="procs"></tbody></table></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= CONTROLS ================= -->
+<section class="view" id="v-controls">
+  <h2>Controls</h2>
+  <p class="lead">Four safe buttons. Each one only starts a unit that already exists.</p>
+  <div class="grid2 sec" id="ctls"></div>
+  <div class="note sec">🔒 <b>What these can't do:</b> edit or delete files, run commands, open a terminal, or touch Oracle billing. The panel's process can only <i>start</i> these 4 units (polkit rule). Vault changes still go through GitHub. <span id="cockpit2"></span></div>
+</section>
+
+</div>
+
+<div class="modal" id="modal"><div class="box"><h3 id="mt" style="margin:0">Confirm</h3><p id="mp"></p><div class="row"><button class="btn ghost" id="mno">Cancel</button><button class="btn" id="myes">Run it</button></div></div></div>
+<div class="toast" id="toast"><span class="dot"></span><span id="tt"></span></div>
+
+<script>
+"use strict";
+const $=s=>document.querySelector(s);
+const BASE=location.pathname.replace(/\/panel\/?$/,'');
+const API=BASE+'/panel/api/';
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const enc=encodeURIComponent;
+async function get(path){const r=await fetch(API+path,{cache:'no-store'});const j=await r.json().catch(()=>({error:'bad reply'}));if(!r.ok&&!j.error)j.error='HTTP '+r.status;return j}
+$('#hudlink').href=BASE+'/status';
+
+/* ---------- formatting ---------- */
+function ago(ts){if(!ts)return '—';const s=Math.max(0,Date.now()/1000-ts);if(s<90)return Math.round(s)+' s ago';if(s<5400)return Math.round(s/60)+' min ago';if(s<172800)return Math.round(s/3600)+' h ago';return Math.round(s/86400)+' d ago'}
+function until(ts){if(!ts)return '—';const s=ts-Date.now()/1000;if(s<=0)return 'now';if(s<90)return 'in '+Math.round(s)+' s';if(s<5400)return 'in '+Math.round(s/60)+' min';return 'in '+Math.round(s/3600)+' h'}
+function dur(s){const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return d?d+'d '+h+'h':h?h+'h '+m+'m':m+'m'}
+function size(b){if(b<1024)return b+' B';if(b<1048576)return (b/1024).toFixed(0)+' KB';if(b<1073741824)return (b/1048576).toFixed(1)+' MB';return (b/1073741824).toFixed(2)+' GB'}
+function rate(b){return b<1024*1000?(b/1024).toFixed(1)+' KB/s':(b/1048576).toFixed(2)+' MB/s'}
+function day(ts){const d=new Date(ts*1000),n=new Date();return d.toDateString()===n.toDateString()?d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}):d.toLocaleDateString([], {month:'short',day:'numeric',year:d.getFullYear()===n.getFullYear()?undefined:'numeric'})}
+const lvlColor=v=>v>85?'var(--red)':v>65?'var(--yellow)':'var(--green)';
+
+/* ---------- routing ---------- */
+const views=['overview','vault','server','controls'];let view='overview';
+function show(v){if(!views.includes(v))v='overview';view=v;
+  document.querySelectorAll('.view').forEach(e=>e.classList.toggle('on',e.id==='v-'+v));
+  document.querySelectorAll('.tab').forEach(e=>e.classList.toggle('on',e.dataset.v===v));
+  requestAnimationFrame(()=>{sizeCanvases();render()});
+  if(v==='vault'){if(!vaultReady){vaultReady=true;openFolder('')}loadFeed()}
+  if(v==='server')loadServer();
+  logsWanted();
+}
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{try{history.replaceState(null,'','#'+b.dataset.v)}catch(e){}show(b.dataset.v)});
+window.addEventListener('hashchange',()=>show(location.hash.slice(1)));
+
+/* ---------- toast ---------- */
+let tto;function toast(msg,c=''){const t=$('#toast');t.querySelector('.dot').className='dot '+c;$('#tt').textContent=msg;t.classList.add('on');clearTimeout(tto);tto=setTimeout(()=>t.classList.remove('on'),3200)}
+
+/* ---------- live stream + charts ---------- */
+const N=120,S={cpu:[],mem:[],nin:[],nout:[],rd:[],wr:[]};let cur=null,memTotal=1000,es=null,lastMsg=0;
+function sizeCanvases(){document.querySelectorAll('canvas').forEach(c=>{const r=c.getBoundingClientRect();if(!r.width)return;const d=devicePixelRatio||1;c.width=r.width*d;c.height=r.height*d;c.getContext('2d').setTransform(d,0,0,d,0,0)})}
+window.addEventListener('resize',()=>{sizeCanvases();render()});
+function draw(id,series,max,fmt){
+  const c=document.getElementById(id);if(!c||!c.offsetParent)return;const g=c.getContext('2d');const w=c.clientWidth,h=c.clientHeight;
+  g.clearRect(0,0,w,h);const L=40,B=16,pw=w-L,ph=h-B-4;
+  g.font='10px "JetBrains Mono",monospace';g.fillStyle='#71717a';g.strokeStyle='#27272a';g.lineWidth=1;
+  for(let i=0;i<=3;i++){const y=4+ph*i/3;g.beginPath();g.moveTo(L,y);g.lineTo(w,y);g.stroke();g.fillText(fmt(max*(1-i/3)),0,y+3)}
+  g.fillText('60s',L,h-2);g.fillText('now',w-20,h-2);
+  for(const [arr,col] of series){if(arr.length<2)continue;
+    const off=N-arr.length;
+    g.beginPath();arr.forEach((v,i)=>{const x=L+pw*(i+off)/(N-1),y=4+ph*(1-Math.min(v,max)/max);i?g.lineTo(x,y):g.moveTo(x,y)});
+    g.strokeStyle=col;g.lineWidth=1.6;g.stroke();
+    g.lineTo(L+pw,4+ph);g.lineTo(L+pw*off/(N-1),4+ph);g.closePath();
+    const gr=g.createLinearGradient(0,4,0,4+ph);gr.addColorStop(0,col+'55');gr.addColorStop(1,col+'00');g.fillStyle=gr;g.fill();
+  }
+}
+const nice=v=>{const steps=[4,8,16,32,64,128,256,512,1024,2048,4096,8192,16384,32768,65536,131072];return steps.find(s=>s>=v)||Math.ceil(v/65536)*65536};
+const kfmt=v=>v>=1024?(v/1024).toFixed(v>=10240?0:1)+'M':Math.round(v)+'K';
+function render(){
+  if(!cur)return;
+  const memP=cur.ram;
+  $('#m-cpu').style.width=cur.cpu+'%';$('#m-cpu').style.background=lvlColor(cur.cpu);$('#t-cpu').textContent=cur.cpu.toFixed(0)+'%';
+  $('#m-mem').style.width=memP+'%';$('#m-mem').style.background=lvlColor(memP);$('#t-mem').textContent=memP.toFixed(0)+'%';
+  $('#t-net').textContent=rate(cur.rx+cur.tx);
+  if(view!=='overview')return;
+  $('#b-cpu').textContent=cur.cpu.toFixed(1)+'%';$('#b-mem').textContent=cur.mb+' MB';
+  $('#cpu-sub').textContent='last 60 s · load '+cur.load;
+  $('#mem-sub').textContent='of '+memTotal+' MB RAM · swap '+cur.swap.toFixed(0)+'% used';
+  $('#b-net').textContent=rate(cur.rx)+' / '+rate(cur.tx);$('#b-io').textContent=rate(cur.dr)+' / '+rate(cur.dw);
+  draw('c-cpu',[[S.cpu,'#22c55e']],100,v=>Math.round(v)+'%');
+  draw('c-mem',[[S.mem,'#3b82f6']],memTotal,v=>Math.round(v));
+  draw('c-net',[[S.nin,'#3b82f6'],[S.nout,'#a78bfa']],nice(Math.max(4,...S.nin,...S.nout)),kfmt);
+  draw('c-io',[[S.rd,'#22d3ee'],[S.wr,'#eab308']],nice(Math.max(4,...S.rd,...S.wr)),kfmt);
+}
+function onSample(d){
+  if(d.cpu===undefined)return;cur=d;lastMsg=Date.now();if(d.mbt)memTotal=d.mbt;
+  const add=(k,v)=>{S[k].push(v);if(S[k].length>N)S[k].shift()};
+  add('cpu',d.cpu);add('mem',d.mb||0);add('nin',d.rx/1024);add('nout',d.tx/1024);add('rd',(d.dr||0)/1024);add('wr',(d.dw||0)/1024);
+  render();
+}
+function live(on){$('#livedot').className='dot '+(on?'':'y');$('#s-dot').className='dot '+(on?'':'y');const b=$('#s-badge');b.className='badge '+(on?'b-g':'b-y');b.textContent=on?'up':'reconnecting…'}
+function openStream(){if(es||document.hidden)return;es=new EventSource(BASE+'/stream?hz=2');
+  es.onmessage=e=>{try{onSample(JSON.parse(e.data))}catch(_){}};es.onopen=()=>live(true);es.onerror=()=>live(false)}
+function closeStream(){if(es){es.close();es=null}}
+document.addEventListener('visibilitychange',()=>{if(document.hidden){closeStream();closeLogs()}else{openStream();logsWanted();tick(true)}});
+setInterval(()=>{$('#clock').textContent=new Date().toLocaleTimeString('en-CA',{hour12:false});if(es&&lastMsg&&Date.now()-lastMsg>8000)live(false);else if(es&&lastMsg)live(true)},1000);
+
+/* ---------- sys + health checks ---------- */
+let sys=null,sysT=0,chkT=0,a1=null;
+async function loadSys(){
+  const s=await get('sys').catch(()=>null);if(!s||s.error)return;sys=s;
+  $('#s-host').textContent=s.host;const sh=$('#s-shape');if(s.shape){sh.hidden=false;sh.textContent=s.shape.replace('VM.Standard.','')}
+  $('#s-sub').textContent=[s.os,s.region,s.fd].filter(Boolean).join(' · ');
+  $('#m-disk').style.width=s.disk_pct+'%';$('#m-disk').style.background=lvlColor(s.disk_pct);$('#t-disk').textContent=Math.round(s.disk_pct)+'%';
+  $('#t-up').textContent=dur(s.uptime);
+  const link=s.cockpit?`Need full control? <a href="${esc(s.cockpit)}" target="_blank" rel="noopener">Open Cockpit ↗</a> (only works on your Tailscale devices).`:'';
+  $('#cockpit').innerHTML=link;$('#cockpit2').innerHTML=link;
+}
+const DOT={ok:'',warn:'y',bad:'r',info:'b'};
+async function loadChecks(){
+  let st;try{st=await (await fetch(BASE+'/status?format=json',{cache:'no-store'})).json()}catch(e){return}
+  if(!st||!st.checks)return;
+  $('#checks').innerHTML=st.checks.map(c=>`<div class="chk" title="${esc(c.detail)}"><span class="dot ${DOT[c.level]??'g'}"></span><div style="min-width:0"><b>${esc(c.name)}</b><small>${esc(c.detail)}</small></div></div>`).join('');
+  $('#chk-when').textContent='Checked '+ago(st.checked_at)+'.';
+  a1=st.checks.find(c=>/^A1/.test(c.name))||null;paintA1();
+}
+function paintA1(){
+  const b=$('#a1-badge'),d=$('#a1-dot'),sub=$('#a1-sub');if(!a1){return}
+  const m=new Date().getMinutes(),n=[2,17,32,47].find(s=>s>m)??2,next=':'+String(n).padStart(2,'0');
+  sub.textContent='1 OCPU · 6 GB · '+a1.detail;
+  if(/IS UP/.test(a1.detail)){b.className='badge b-g';b.textContent='up 🎉';d.className='dot'}
+  else if(a1.level==='ok'){b.className='badge b-y';b.textContent='retrying · next '+next;d.className='dot g'}
+  else if(a1.level==='info'){b.className='badge';b.textContent='unknown';d.className='dot g'}
+  else{b.className='badge b-r';b.textContent='needs a look';d.className='dot y'}
+}
+function tick(force){const now=Date.now();
+  if(force||now-sysT>15000){sysT=now;loadSys()}
+  if(force||now-chkT>60000){chkT=now;loadChecks()}
+  paintA1();
+  if(view==='server'&&(force||now-srvT>5000))loadServer();
+  if(view==='vault'&&(force||now-feedT>60000))loadFeed();
+  if(feedData)$('#lastpull').textContent=ago(feedData.last_pull);
+}
+setInterval(()=>{if(!document.hidden)tick(false)},1000);
+
+/* ---------- vault ---------- */
+let vaultReady=false,curPath='',feedData=null,feedT=0,selFile='';
+const lsCache={},open={'':true};
+const TEXT=/\.(md|txt|csv|tsv|json|canvas|py|m|tex|ya?ml|html?|js|css|xml|ini|cfg|log|sh|ps1|bat|c|cpp|h|ipynb)$/i,IMG=/\.(png|jpe?g|gif|webp|bmp)$/i;
+const kind=n=>/\.pdf$/i.test(n)?'pdf':TEXT.test(n)?'note':IMG.test(n)?'image':'file';
+const ICON={dir:'📁',pdf:'📕',note:'📝',image:'🖼️',file:'📄'},BADGE={pdf:'b-r',note:'b-b',image:'b-v'};
+const join=(a,b)=>a?a+'/'+b:b;
+async function ls(path){const c=lsCache[path];if(c&&Date.now()-c.t<30000)return c.d;const d=await get('ls?path='+enc(path));lsCache[path]={t:Date.now(),d};return d}
+function treeHtml(path,depth){const d=lsCache[path]?.d;if(!d||!d.entries)return '';
+  return d.entries.filter(e=>e.d).map(e=>{const p=join(path,e.n);
+    return `<div class="node ${p===curPath?'on':''}" data-p="${esc(p)}" style="padding-left:${8+depth*14}px" title="${esc(e.n)}">${open[p]?'📂':'📁'} <span>${esc(e.n)}</span></div>`+(open[p]?treeHtml(p,depth+1):'')}).join('')}
+function renderTree(){$('#tree').innerHTML=`<div class="node ${curPath===''?'on':''}" data-p="">🗄️ <span>Vex1</span></div>`+treeHtml('',1);
+  document.querySelectorAll('#tree .node').forEach(n=>n.onclick=()=>{const p=n.dataset.p;if(p===curPath&&p!=='')open[p]=!open[p];else open[p]=true;openFolder(p)})}
+function crumbs(){const parts=curPath?curPath.split('/'):[];let acc='';
+  $('#crumbs').innerHTML=`<a data-p="">Vex1</a>`+parts.map(x=>{acc=join(acc,x);return ` / <a data-p="${esc(acc)}">${esc(x)}</a>`}).join('');
+  document.querySelectorAll('#crumbs a').forEach(a=>a.onclick=()=>openFolder(a.dataset.p))}
+async function openFolder(path){curPath=path;$('#q').value='';
+  const parts=path?path.split('/'):[];let acc='';for(const x of parts){acc=join(acc,x);open[acc]=true}
+  crumbs();const d=await ls(path);
+  // make sure every parent is loaded so the tree can draw down to here
+  acc='';await ls('');for(const x of parts){acc=join(acc,x);await ls(acc)}
+  if(curPath!==path)return;renderTree();
+  if(d.error){$('#files').innerHTML=`<tr><td colspan="4" class="dim">${esc(d.error)}</td></tr>`;return}
+  renderFiles(d.entries.map(e=>({p:join(path,e.n),n:e.n,k:e.d?'dir':kind(e.n),m:e.m,s:e.s})),d.more?'Showing the first 1500 items.':'')}
+function renderFiles(rows,note){
+  $('#files').innerHTML=(rows.length?rows.map(r=>`<tr data-p="${esc(r.p)}" data-k="${r.k}"><td>${ICON[r.k]} ${esc(r.n)}${r.sub?`<div class="hit">${esc(r.sub)}</div>`:''}</td><td><span class="badge ${BADGE[r.k]||''}">${r.k==='dir'?'folder':r.k}</span></td><td class="muted" style="white-space:nowrap">${r.m?day(r.m):'—'}</td><td class="muted mono" style="white-space:nowrap">${r.k==='dir'||r.s==null?'—':size(r.s)}</td></tr>`).join(''):'<tr><td colspan="4" class="dim">Nothing here.</td></tr>')+(note?`<tr><td colspan="4" class="dim">${esc(note)}</td></tr>`:'');
+  document.querySelectorAll('#files tr[data-p]').forEach(r=>r.onclick=()=>{r.dataset.k==='dir'?openFolder(r.dataset.p):preview(r.dataset.p,r.dataset.k)})}
+let qt;$('#q').oninput=e=>{clearTimeout(qt);const q=e.target.value.trim();if(q.length<2){if(!q)openFolder(curPath);return}
+  qt=setTimeout(async()=>{$('#files').innerHTML='<tr><td colspan="4" class="dim">Searching…</td></tr>';const d=await get('search?q='+enc(q));if($('#q').value.trim()!==q)return;
+    const base=p=>p.split('/').pop(),dir=p=>p.includes('/')?p.slice(0,p.lastIndexOf('/')):'(top)';
+    const rows=(d.names||[]).map(x=>({p:x.p,n:base(x.p),k:kind(x.p),m:x.m,s:x.s,sub:dir(x.p)}))
+      .concat((d.text||[]).map(x=>({p:x.p,n:base(x.p),k:kind(x.p),sub:dir(x.p)+' · line '+x.l+': '+x.t})));
+    $('#crumbs').innerHTML=`<span>${rows.length} match${rows.length===1?'':'es'} for “${esc(q)}” · </span><a id="clr">clear</a>`;$('#clr').onclick=()=>openFolder(curPath);
+    renderFiles(rows,'')},350)};
+async function preview(path,k){selFile=path;const p=$('#preview'),name=path.split('/').pop(),folder=path.includes('/')?path.slice(0,path.lastIndexOf('/')):'(top)';
+  const head=`<h4>${esc(name)}</h4><div class="dim" style="font-size:12px">${esc(folder)} · read-only`;
+  if(k==='note'||k==='file'){p.innerHTML=head+'</div><pre>Loading…</pre>';const d=await get('note?path='+enc(path));if(selFile!==path)return;
+    if(d.error){p.innerHTML=head+`</div><p class="dim">${esc(d.error)}</p>`;return}
+    if(d.binary){p.innerHTML=head+` · ${size(d.size)}</div><p class="dim">Can't preview this kind of file here.</p>`;return}
+    p.innerHTML=head+` · ${size(d.size)}${d.truncated?' · showing the first part':''}</div><pre></pre>`;p.querySelector('pre').textContent=d.text;return}
+  if(k==='image'){p.innerHTML=head+`</div><img class="pimg" alt="" src="${API}raw?path=${enc(path)}">`;return}
+  p.innerHTML=head+' · PDF</div><p class="dim">Opening…</p>';const info=await get('pdf?path='+enc(path));if(selFile!==path)return;
+  if(info.error||!info.pages){p.innerHTML=head+` · PDF</div><p class="dim">${esc(info.error||"Couldn't open that PDF.")}</p>`;return}
+  let pg=1;const drawPg=()=>{p.innerHTML=head+` · PDF · ${size(info.size)}</div>
+    <div class="pdf"><img class="page" alt="page ${pg}" src="${API}pdfpage?path=${enc(path)}&page=${pg}">
+    <div style="display:flex;flex-direction:column;gap:8px"><span class="muted">Page <b>${pg}</b> of ${info.pages}</span><div style="display:flex;gap:6px"><button class="btn ghost" id="pp" ${pg<=1?'disabled':''}>← Prev</button><button class="btn ghost" id="pn" ${pg>=info.pages?'disabled':''}>Next →</button></div><span class="dim" style="font-size:12px">Drawn on the server one page at a time,<br>so there's no big download.</span></div></div>`;
+    $('#pp').onclick=()=>{pg=Math.max(1,pg-1);drawPg()};$('#pn').onclick=()=>{pg=Math.min(info.pages,pg+1);drawPg()}};drawPg()}
+const WHO={'Canvas bot':'b-y','PC':'b-g','Claude':'b-v'};
+async function loadFeed(){feedT=Date.now();const d=await get('feed').catch(()=>null);if(!d||d.error)return;feedData=d;
+  $('#head').textContent=d.head||'?';$('#lastpull').textContent=ago(d.last_pull);
+  $('#feed').innerHTML=d.commits.length?d.commits.map(c=>`<div class="it"><span class="badge ${WHO[c.who]||''}" style="min-width:82px;text-align:center">${esc(c.who)}</span><div><div>${esc(c.s)}</div><div class="dim" style="font-size:12px">${esc(c.file||c.where||'(top)')}${c.n>1?' · '+c.n+' files':''}</div></div><span class="when">${ago(c.t)}</span></div>`).join(''):'<span class="dim">No commits yet.</span>'}
+
+/* ---------- server ---------- */
+let srvT=0,logES=null,logUnit='';
+const UB={ok:'b-g',wait:'b-b',bad:'b-r',off:''};
+async function loadServer(){srvT=Date.now();const d=await get('server').catch(()=>null);if(!d||d.error)return;
+  $('#units').innerHTML=d.units.map(u=>`<tr><td class="mono" style="font-size:12.5px">${esc(u.unit)}</td><td class="muted">${esc(u.what)}</td><td><span class="badge ${UB[u.lvl]||''}">${esc(u.state)}</span></td><td class="muted" style="white-space:nowrap">${u.since?'running '+dur(d.now-u.since):ago(u.last)}</td><td class="muted" style="white-space:nowrap">${until(u.next)}</td></tr>`).join('');
+  $('#procs').innerHTML=d.procs.map(p=>`<tr><td>${esc(p.name)}</td><td class="mono dim">${p.pid}</td><td class="mono muted">${p.cpu.toFixed(1)}%</td><td class="mono muted">${p.mb.toFixed(0)} MB</td></tr>`).join('')}
+function closeLogs(){if(logES){logES.close();logES=null}}
+function logsWanted(){const want=view==='server'&&!document.hidden,unit=$('#unitSel').value;
+  if(!want){closeLogs();return}
+  if(logES&&logUnit===unit)return;closeLogs();logUnit=unit;$('#logs').innerHTML='';
+  logES=new EventSource(API+'logs?unit='+enc(unit));
+  logES.onmessage=e=>{let j;try{j=JSON.parse(e.data)}catch(_){return}const L=$('#logs'),stick=L.scrollTop+L.clientHeight>=L.scrollHeight-30;
+    const div=document.createElement('div');const t=j.t?new Date(j.t*1000).toLocaleTimeString('en-CA',{hour12:false}):'';
+    div.innerHTML=`<span class="t">${t}</span> <span class="u">${esc(j.u)}</span> <span class="${j.p<=3?'e':j.p===4?'w':''}">${esc(j.m)}</span>`;L.appendChild(div);
+    while(L.children.length>300)L.firstChild.remove();if(stick)L.scrollTop=L.scrollHeight}}
+$('#unitSel').onchange=logsWanted;
+
+/* ---------- controls ---------- */
+const ctls=[
+ ['sync','🔄','Sync vault now','Starts vex1-sync.service right away instead of waiting up to 5 min.','vex1-sync.service'],
+ ['a1','🚀','Try A1 now','Asks GitHub to run one A1 launch attempt (skips if one ran <10 min ago).','vex1-kick@oracle-a1-retry.service'],
+ ['watchdog','🛰️','Run watchdog','Triggers the outside-in check from GitHub (Tailscale + Funnel).','vex1-kick@watchdog.service'],
+ ['restart','♻️','Restart connector','Restarts vex1-mcp. This page + the Claude connector drop for ~5 s.','vex1-mcp.service (restart)']
+];
+$('#ctls').innerHTML=ctls.map((c,i)=>`<div class="card ctl"><div style="display:flex;gap:10px;align-items:center"><div class="ic">${c[1]}</div><div style="min-width:0"><h3>${c[2]}</h3><div class="sub mono">${c[4]}</div></div></div><div class="muted" style="font-size:13px;line-height:1.5">${c[3]}</div><div><button class="btn" data-i="${i}">Run</button></div><div class="out" id="o${i}"></div></div>`).join('');
+let pending=null;
+document.querySelectorAll('#ctls .btn').forEach(b=>b.onclick=()=>{pending=+b.dataset.i;const c=ctls[pending];$('#mt').textContent=c[1]+' '+c[2]+'?';$('#mp').textContent=c[3];$('#modal').classList.add('on')});
+$('#mno').onclick=()=>$('#modal').classList.remove('on');
+$('#modal').onclick=e=>{if(e.target.id==='modal')$('#modal').classList.remove('on')};
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+$('#myes').onclick=async()=>{$('#modal').classList.remove('on');const i=pending,c=ctls[i],btn=document.querySelector(`#ctls .btn[data-i="${i}"]`),o=$('#o'+i);
+  const set=(txt,cls)=>{o.className='out '+(cls||'');o.textContent=txt};
+  btn.disabled=true;set('starting…');
+  try{
+    const r=await fetch(API+'run?action='+c[0],{method:'POST',headers:{'X-Vex1':'1'}});const j=await r.json().catch(()=>({}));
+    if(!j.ok){set('✗ '+(j.error||'failed'),'bad');toast(c[2]+' failed','r');return}
+    if(c[0]==='restart'){set('stopping vex1-mcp…');const before=j.started;let ok=false;
+      for(let k=0;k<45;k++){await sleep(1000);const s=await get('sys').catch(()=>null);
+        if(s&&s.started&&s.started!==before){ok=true;break}
+        if(s&&s.restart_error){set('✗ '+s.restart_error,'bad');toast('Restart was refused','r');return}
+        if(!s)set('starting…')}
+      if(ok){set('✓ connector answering (restarted)','ok');toast('Connector restarted');tick(true)}else{set("✗ it didn't restart: check the Server tab",'bad')}
+      return}
+    for(let k=0;k<150;k++){await sleep(1000);const s=await get('run?action='+c[0]).catch(()=>null);if(!s)continue;
+      const lines=(s.lines||[]).join('\n');
+      if(s.state==='running'){set(lines||'running…');continue}
+      if(s.state==='done'){set((lines?lines+'\n':'')+'✓ done','ok');toast(c[2]+': done');tick(true);if(c[0]==='sync'){for(const k in lsCache)delete lsCache[k];feedT=0}return}
+      set((lines?lines+'\n':'')+'✗ failed','bad');toast(c[2]+' failed','r');return}
+    set('still running: check the Server tab logs')
+  }catch(e){set('✗ lost the connection','bad')}
+  finally{btn.disabled=false}
+};
+
+show(location.hash.slice(1));sizeCanvases();openStream();tick(true);
+</script>
+</body>
+</html>
