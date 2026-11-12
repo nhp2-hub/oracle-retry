@@ -168,10 +168,14 @@ def list_folder(path: str = "", depth: int = 1) -> str:
 
 
 @mcp.tool()
-def status() -> str:
+async def status() -> str:
     """Health check of Neel's vex-micro server: memory, disk, vault sync, connector,
     Tailscale/Funnel, last Canvas sync, the A1 retry loop and the last PC push."""
-    return vex1_status.render_text(vex1_status.collect())
+    import anyio
+    # run in a thread: the connector check calls this same server, which would
+    # otherwise wait on itself and time out
+    st = await anyio.to_thread.run_sync(vex1_status.collect)
+    return vex1_status.render_text(st)
 
 
 # Status page for Neel's iPad: https://<funnel host>/<MCP_TOKEN>/status  (add ?format=json for JSON)
