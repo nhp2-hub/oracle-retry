@@ -13,8 +13,9 @@ name: Oracle A1 retry
 on:
   workflow_dispatch:      # "Run workflow" = one extra try right now
   schedule:
-    - cron: "2,17,32,47 * * * *"  # one try every 15 min (was a nonstop 5-min self-trigger loop,
-                                  # which made GitHub start throttling this repo)
+    - cron: "2-59/5 * * * *"  # one try every 5 min (:02, :07, :12, ...). Plain cron, not the old
+                              # self-trigger loop that made GitHub throttle this repo. If runs get
+                              # throttled or Oracle returns 429 TooManyRequests, go back to every 15 min.
 
 permissions:
   actions: write   # disable itself (on success or repeated failures)
@@ -204,5 +205,5 @@ jobs:
             gh api -X PUT "$R/disable" || true
             echo "Too many failures in a row - loop paused, issue opened."
           else
-            echo "This run failed - the next scheduled try is in ~15 min."
+            echo "This run failed - the next scheduled try is in ~5 min."
           fi
