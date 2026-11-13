@@ -1,5 +1,5 @@
 #!/bin/bash
-# Makes vex-micro start the A1 retry (every 15 min) and the Watchdog (every 30 min)
+# Makes vex-micro start the A1 retry (every 5 min) and the Watchdog (every 30 min)
 # on GitHub, because GitHub stopped running this repo's schedules. Safe to re-run.
 # Asks once for a GitHub token (fine-grained, only oracle-retry, Actions: read & write).
 set -euo pipefail
@@ -31,13 +31,13 @@ After=network-online.target
 Type=oneshot
 User=$USER
 EnvironmentFile=$DIR/gh-kick
-ExecStart=/usr/bin/python3 $DIR/vex1_kick.py %i.yml 10
+ExecStart=/usr/bin/python3 $DIR/vex1_kick.py %i.yml 4
 UNIT
   sudo tee /etc/systemd/system/vex1-kick@oracle-a1-retry.timer >/dev/null <<UNIT
 [Unit]
-Description=A1 retry every 15 min
+Description=A1 retry every 5 min
 [Timer]
-OnCalendar=*:02,17,32,47
+OnCalendar=*:02/5
 Persistent=true
 [Install]
 WantedBy=timers.target

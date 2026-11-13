@@ -430,7 +430,7 @@ $('#unitSel').onchange=logsWanted;
 /* ---------- controls ---------- */
 const ctls=[
  ['sync','🔄','Sync vault now','Starts vex1-sync.service right away instead of waiting up to 5 min.','vex1-sync.service'],
- ['a1','🚀','Try A1 now','Asks GitHub to run one A1 launch attempt (skips if one ran <10 min ago).','vex1-kick@oracle-a1-retry.service'],
+ ['a1','🚀','Try A1 now','Asks GitHub to run one A1 launch attempt (skips if one ran <4 min ago).','vex1-kick@oracle-a1-retry.service'],
  ['watchdog','🛰️','Run watchdog','Triggers the outside-in check from GitHub (Tailscale + Funnel).','vex1-kick@watchdog.service'],
  ['restart','♻️','Restart connector','Restarts vex1-mcp. This page + the Claude connector drop for ~5 s.','vex1-mcp.service (restart)']
 ];
