@@ -5,6 +5,7 @@ The page itself is vex1_panel.html; this file is the small JSON API behind it:
 
   panel/api/sys            server facts for the systems table
   panel/api/ls|search|note|pdf|pdfpage|raw|feed     read-only vault browser
+  panel/api/download       sends a vault file (attachment; ?inline=1 opens a PDF in the browser)
   panel/api/server         vex1 services + timers, top processes
   panel/api/logs           live journalctl for the vex1 units (Server-Sent Events)
   panel/api/run            the 4 buttons (POST starts one, GET shows how it's going)
@@ -515,6 +516,22 @@ def register(mcp, token, vault, safe):
         if p.suffix.lower() not in IMG_EXT or p.stat().st_size > RAW_MAX:
             return _json({"error": "Only images up to 12 MB can be previewed."}, 400)
         return FileResponse(p, media_type=mimetypes.guess_type(p.name)[0] or "application/octet-stream",
+                            headers={**HEADERS, "Cache-Control": "private, max-age=600"})
+
+    @mcp.custom_route(base + "/api/download", methods=["GET"])
+    async def api_download(request: Request):
+        """Send any vault file as-is. ?inline=1 opens a PDF in the browser's own viewer instead of saving it."""
+        try:
+            p = path_of(request, "file")
+        except ValueError:
+            return _json({"error": "No file there."}, 404)
+        inline = request.query_params.get("inline") == "1" and p.suffix.lower() == ".pdf"
+        # inline only for PDFs; everything else is a plain download so nothing in the vault runs as a page
+        media = "application/pdf" if inline else (mimetypes.guess_type(p.name)[0] or "application/octet-stream")
+        if not inline and media.startswith("text/html"):
+            media = "application/octet-stream"
+        return FileResponse(p, media_type=media, filename=p.name,
+                            content_disposition_type="inline" if inline else "attachment",
                             headers={**HEADERS, "Cache-Control": "private, max-age=600"})
 
     @mcp.custom_route(base + "/api/feed", methods=["GET"])

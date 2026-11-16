@@ -115,6 +115,11 @@ select{background:var(--card2);color:var(--fg);border:1px solid var(--bd);border
 .btn:hover{opacity:.9}
 .btn.ghost{background:var(--card2);color:var(--fg);border-color:var(--bd)}
 .btn:disabled{opacity:.45;cursor:not-allowed}
+.phead{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
+.phead .acts{display:flex;gap:6px;flex-shrink:0}
+a.btn{text-decoration:none;display:inline-block;font-size:13px;padding:7px 12px}
+a.dl{opacity:.55;text-decoration:none;margin-left:6px;padding:2px 6px;border-radius:6px}
+a.dl:hover{opacity:1;background:var(--card2)}
 .out{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:12px;color:var(--mut);min-height:18px;white-space:pre-wrap;overflow-wrap:anywhere}
 .out.ok{color:#86efac}.out.bad{color:#fca5a5}
 .note{border:1px dashed var(--bd2);border-radius:var(--r);padding:12px 14px;color:var(--mut);font-size:13px;line-height:1.55}
@@ -243,6 +248,7 @@ const BASE=location.pathname.replace(/\/panel\/?$/,'');
 const API=BASE+'/panel/api/';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const enc=encodeURIComponent;
+const dlUrl=(p,inline)=>API+'download?path='+enc(p)+(inline?'&inline=1':'');
 async function get(path){const r=await fetch(API+path,{cache:'no-store'});const j=await r.json().catch(()=>({error:'bad reply'}));if(!r.ok&&!j.error)j.error='HTTP '+r.status;return j}
 $('#hudlink').href=BASE+'/status';
 
@@ -383,7 +389,8 @@ async function openFolder(path){curPath=path;$('#q').value='';
   if(d.error){$('#files').innerHTML=`<tr><td colspan="4" class="dim">${esc(d.error)}</td></tr>`;return}
   renderFiles(d.entries.map(e=>({p:join(path,e.n),n:e.n,k:e.d?'dir':kind(e.n),m:e.m,s:e.s})),d.more?'Showing the first 1500 items.':'')}
 function renderFiles(rows,note){
-  $('#files').innerHTML=(rows.length?rows.map(r=>`<tr data-p="${esc(r.p)}" data-k="${r.k}"><td>${ICON[r.k]} ${esc(r.n)}${r.sub?`<div class="hit">${esc(r.sub)}</div>`:''}</td><td><span class="badge ${BADGE[r.k]||''}">${r.k==='dir'?'folder':r.k}</span></td><td class="muted" style="white-space:nowrap">${r.m?day(r.m):'—'}</td><td class="muted mono" style="white-space:nowrap">${r.k==='dir'||r.s==null?'—':size(r.s)}</td></tr>`).join(''):'<tr><td colspan="4" class="dim">Nothing here.</td></tr>')+(note?`<tr><td colspan="4" class="dim">${esc(note)}</td></tr>`:'');
+  $('#files').innerHTML=(rows.length?rows.map(r=>`<tr data-p="${esc(r.p)}" data-k="${r.k}"><td>${ICON[r.k]} ${esc(r.n)}${r.k==='dir'?'':`<a class="dl" href="${dlUrl(r.p)}" download title="Download">⬇️</a>`}${r.sub?`<div class="hit">${esc(r.sub)}</div>`:''}</td><td><span class="badge ${BADGE[r.k]||''}">${r.k==='dir'?'folder':r.k}</span></td><td class="muted" style="white-space:nowrap">${r.m?day(r.m):'—'}</td><td class="muted mono" style="white-space:nowrap">${r.k==='dir'||r.s==null?'—':size(r.s)}</td></tr>`).join(''):'<tr><td colspan="4" class="dim">Nothing here.</td></tr>')+(note?`<tr><td colspan="4" class="dim">${esc(note)}</td></tr>`:'');
+  document.querySelectorAll('#files a.dl').forEach(a=>a.onclick=e=>e.stopPropagation());
   document.querySelectorAll('#files tr[data-p]').forEach(r=>r.onclick=()=>{r.dataset.k==='dir'?openFolder(r.dataset.p):preview(r.dataset.p,r.dataset.k)})}
 let qt;$('#q').oninput=e=>{clearTimeout(qt);const q=e.target.value.trim();if(q.length<2){if(!q)openFolder(curPath);return}
   qt=setTimeout(async()=>{$('#files').innerHTML='<tr><td colspan="4" class="dim">Searching…</td></tr>';const d=await get('search?q='+enc(q));if($('#q').value.trim()!==q)return;
@@ -393,17 +400,18 @@ let qt;$('#q').oninput=e=>{clearTimeout(qt);const q=e.target.value.trim();if(q.l
     $('#crumbs').innerHTML=`<span>${rows.length} match${rows.length===1?'':'es'} for “${esc(q)}” · </span><a id="clr">clear</a>`;$('#clr').onclick=()=>openFolder(curPath);
     renderFiles(rows,'')},350)};
 async function preview(path,k){selFile=path;const p=$('#preview'),name=path.split('/').pop(),folder=path.includes('/')?path.slice(0,path.lastIndexOf('/')):'(top)';
-  const head=`<h4>${esc(name)}</h4><div class="dim" style="font-size:12px">${esc(folder)} · read-only`;
+  const isPdf=/\.pdf$/i.test(name);
+  const head=`<div class="phead"><h4>${esc(name)}</h4><div class="acts">${isPdf?`<a class="btn ghost" href="${dlUrl(path,1)}" target="_blank" rel="noopener">↗ Open</a>`:''}<a class="btn" href="${dlUrl(path)}" download>⬇️ Download</a></div></div><div class="dim" style="font-size:12px">${esc(folder)} · read-only`;
   if(k==='note'||k==='file'){p.innerHTML=head+'</div><pre>Loading…</pre>';const d=await get('note?path='+enc(path));if(selFile!==path)return;
     if(d.error){p.innerHTML=head+`</div><p class="dim">${esc(d.error)}</p>`;return}
-    if(d.binary){p.innerHTML=head+` · ${size(d.size)}</div><p class="dim">Can't preview this kind of file here.</p>`;return}
+    if(d.binary){p.innerHTML=head+` · ${size(d.size)}</div><p class="dim">Can't preview this kind of file here, but you can download it.</p>`;return}
     p.innerHTML=head+` · ${size(d.size)}${d.truncated?' · showing the first part':''}</div><pre></pre>`;p.querySelector('pre').textContent=d.text;return}
   if(k==='image'){p.innerHTML=head+`</div><img class="pimg" alt="" src="${API}raw?path=${enc(path)}">`;return}
   p.innerHTML=head+' · PDF</div><p class="dim">Opening…</p>';const info=await get('pdf?path='+enc(path));if(selFile!==path)return;
   if(info.error||!info.pages){p.innerHTML=head+` · PDF</div><p class="dim">${esc(info.error||"Couldn't open that PDF.")}</p>`;return}
   let pg=1;const drawPg=()=>{p.innerHTML=head+` · PDF · ${size(info.size)}</div>
     <div class="pdf"><img class="page" alt="page ${pg}" src="${API}pdfpage?path=${enc(path)}&page=${pg}">
-    <div style="display:flex;flex-direction:column;gap:8px"><span class="muted">Page <b>${pg}</b> of ${info.pages}</span><div style="display:flex;gap:6px"><button class="btn ghost" id="pp" ${pg<=1?'disabled':''}>← Prev</button><button class="btn ghost" id="pn" ${pg>=info.pages?'disabled':''}>Next →</button></div><span class="dim" style="font-size:12px">Drawn on the server one page at a time,<br>so there's no big download.</span></div></div>`;
+    <div style="display:flex;flex-direction:column;gap:8px"><span class="muted">Page <b>${pg}</b> of ${info.pages}</span><div style="display:flex;gap:6px"><button class="btn ghost" id="pp" ${pg<=1?'disabled':''}>← Prev</button><button class="btn ghost" id="pn" ${pg>=info.pages?'disabled':''}>Next →</button></div><span class="dim" style="font-size:12px">Drawn on the server one page at a time.<br>Use Download or Open for the full PDF.</span></div></div>`;
     $('#pp').onclick=()=>{pg=Math.max(1,pg-1);drawPg()};$('#pn').onclick=()=>{pg=Math.min(info.pages,pg+1);drawPg()}};drawPg()}
 const WHO={'Canvas bot':'b-y','PC':'b-g','Claude':'b-v'};
 async function loadFeed(){feedT=Date.now();const d=await get('feed').catch(()=>null);if(!d||d.error)return;feedData=d;
